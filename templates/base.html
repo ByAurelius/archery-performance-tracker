@@ -13,7 +13,11 @@
         <div class="collapse navbar-collapse">
           <ul class="navbar-nav ms-auto">
             {% if session.get('user_id') %}
-                <li class="nav-item"><a class="nav-link" href="/dashboard">Dashboard</a></li>
+                {% if session.get('is_coach') %}
+                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="/coach_dashboard">Coach Panel</a></li>
+                {% else %}
+                    <li class="nav-item"><a class="nav-link" href="/dashboard">Dashboard</a></li>
+                {% endif %}
                 <li class="nav-item"><a class="nav-link text-danger" href="/logout">Logout</a></li>
             {% else %}
                 <li class="nav-item"><a class="nav-link" href="/login">Login</a></li>
@@ -27,6 +31,5 @@
     <div class="container mt-5">
         {% block content %}{% endblock %}
     </div>
-
 </body>
 </html>

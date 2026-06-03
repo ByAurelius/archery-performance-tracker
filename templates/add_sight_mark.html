@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-body">
+                <h3 class="card-title text-center mb-4">Add Sight Mark</h3>
+                <form method="POST" action="/add_sight_mark">
+                    <div class="mb-3">
+                        <label class="form-label">Date:</label>
+                        <input type="date" name="date" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Distance (Meters):</label>
+                        <input type="number" name="distance" class="form-control" placeholder="e.g. 50" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Sight Setting:</label>
+                        <input type="text" name="setting" class="form-control" placeholder="e.g. 4.8 or 45 clicks" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100">Save Sight Mark</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

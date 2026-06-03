@@ -1,40 +1,56 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
 app.secret_key = 'archery_secret_key_123'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///archery.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
 db = SQLAlchemy(app)
 
-# Database Model: Archer (Sporcu Tablosu)
+
 class Archer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
-    # Relationship: Bir sporcunun birden fazla skoru olabilir
+    # YENI SUTUN: Kullanici antrenor mu? (Varsayilan olarak Hayir)
+    is_coach = db.Column(db.Boolean, default=False)
     scores = db.relationship('Score', backref='shooter', lazy=True)
+    sight_marks = db.relationship('SightMark', backref='shooter', lazy=True)
 
-# Database Model: Score (Skor/Antrenman Tablosu)
+
 class Score(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.String(20), nullable=False)
-    distance = db.Column(db.Integer, nullable=False) # Kac metreden atildi
-    arrows_shot = db.Column(db.Integer, nullable=False) # Kac ok atildi
-    total_score = db.Column(db.Integer, nullable=False) # Toplam Puan
-    # Foreign Key: Bu skor hangi sporcuya ait?
+    distance = db.Column(db.Integer, nullable=False)
+    arrows_shot = db.Column(db.Integer, nullable=False)
+    total_score = db.Column(db.Integer, nullable=False)
+    image_file = db.Column(db.String(255), nullable=True)
     archer_id = db.Column(db.Integer, db.ForeignKey('archer.id'), nullable=False)
 
+
+class SightMark(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date_recorded = db.Column(db.String(20), nullable=False)
+    distance = db.Column(db.Integer, nullable=False)
+    setting = db.Column(db.String(50), nullable=False)
+    archer_id = db.Column(db.Integer, db.ForeignKey('archer.id'), nullable=False)
+
+
 with app.app_context():
-    db.create_all() # Yeni tabloyu veritabanina ekler
+    db.create_all()
+
 
 @app.route('/')
 def home_page():
     return render_template('index.html')
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register_page():
@@ -42,14 +58,16 @@ def register_page():
         form_username = request.form.get('username')
         form_email = request.form.get('email')
         form_password = request.form.get('password')
+        # Formdan gelen checkbox isaretli mi kontrol et
+        form_is_coach = request.form.get('is_coach') == 'on'
 
         hashed_password = generate_password_hash(form_password)
-        new_archer = Archer(username=form_username, email=form_email, password=hashed_password)
+        new_archer = Archer(username=form_username, email=form_email, password=hashed_password, is_coach=form_is_coach)
         db.session.add(new_archer)
         db.session.commit()
         return redirect(url_for('login_page'))
-
     return render_template('register.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
@@ -62,53 +80,92 @@ def login_page():
         if archer and check_password_hash(archer.password, form_password):
             session['user_id'] = archer.id
             session['username'] = archer.username
-            return redirect(url_for('dashboard_page'))
+            # Session'a kullanicinin rolunu de kaydediyoruz
+            session['is_coach'] = archer.is_coach
+
+            # Eger antrenorse farkli, sporcuysa farkli sayfaya yonlendir
+            if archer.is_coach:
+                return redirect(url_for('coach_dashboard_page'))
+            else:
+                return redirect(url_for('dashboard_page'))
         else:
             return "<h1>Invalid Email or Password!</h1>"
-
     return render_template('login.html')
 
-# Add Score Route (Skor Ekleme Sayfasi)
+
+# YENI SAYFA: Antrenor Dashboard'u
+@app.route('/coach_dashboard')
+def coach_dashboard_page():
+    # Sadece giris yapmis ANTRENORLER bu sayfayi gorebilir
+    if 'user_id' in session and session.get('is_coach'):
+        # Veritabanindan sadece sporculari (is_coach=False olanlari) cek
+        athletes = Archer.query.filter_by(is_coach=False).all()
+        return render_template('coach_dashboard.html', username=session['username'], athletes=athletes)
+    else:
+        return redirect(url_for('home_page'))
+
+
 @app.route('/add_score', methods=['GET', 'POST'])
 def add_score_page():
-    if 'user_id' not in session:
-        return redirect(url_for('login_page'))
-
+    if 'user_id' not in session: return redirect(url_for('login_page'))
     if request.method == 'POST':
         form_date = request.form.get('date')
         form_distance = request.form.get('distance')
         form_arrows = request.form.get('arrows_shot')
         form_score = request.form.get('total_score')
+        form_image = request.files.get('target_image')
+        filename = None
 
-        # Veritabanina yeni skoru kaydet
-        new_score = Score(
-            date=form_date,
-            distance=form_distance,
-            arrows_shot=form_arrows,
-            total_score=form_score,
-            archer_id=session['user_id']
-        )
+        if form_image and form_image.filename != '':
+            filename = secure_filename(form_image.filename)
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            form_image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+        new_score = Score(date=form_date, distance=form_distance, arrows_shot=form_arrows,
+                          total_score=form_score, image_file=filename, archer_id=session['user_id'])
         db.session.add(new_score)
         db.session.commit()
         return redirect(url_for('dashboard_page'))
-
     return render_template('add_score.html')
 
-# Dashboard Route (Guncellendi: Artik skorlari da veritabanindan cekiyor)
+
+@app.route('/add_sight_mark', methods=['GET', 'POST'])
+def add_sight_mark_page():
+    if 'user_id' not in session: return redirect(url_for('login_page'))
+    if request.method == 'POST':
+        form_date = request.form.get('date')
+        form_distance = request.form.get('distance')
+        form_setting = request.form.get('setting')
+
+        new_mark = SightMark(date_recorded=form_date, distance=form_distance, setting=form_setting,
+                             archer_id=session['user_id'])
+        db.session.add(new_mark)
+        db.session.commit()
+        return redirect(url_for('dashboard_page'))
+    return render_template('add_sight_mark.html')
+
+
 @app.route('/dashboard')
 def dashboard_page():
+    # Eger giren kisi antrenorse kendi dashboarduna zorla
+    if session.get('is_coach'): return redirect(url_for('coach_dashboard_page'))
+
     if 'user_id' in session:
-        # Sisteme giren kisinin id'sine ait skorlari bul
         user_scores = Score.query.filter_by(archer_id=session['user_id']).all()
-        return render_template('dashboard.html', username=session['username'], scores=user_scores)
+        user_sight_marks = SightMark.query.filter_by(archer_id=session['user_id']).all()
+        return render_template('dashboard.html', username=session['username'], scores=user_scores,
+                               sight_marks=user_sight_marks)
     else:
         return redirect(url_for('login_page'))
+
 
 @app.route('/logout')
 def logout_page():
     session.pop('user_id', None)
     session.pop('username', None)
+    session.pop('is_coach', None)
     return redirect(url_for('home_page'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)

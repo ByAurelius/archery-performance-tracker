@@ -5,7 +5,7 @@
         <div class="card shadow">
             <div class="card-body">
                 <h3 class="card-title text-center mb-4">Add Training Score</h3>
-                <form method="POST" action="/add_score">
+                <form method="POST" action="/add_score" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label">Date:</label>
                         <input type="date" name="date" class="form-control" required>
@@ -21,6 +21,10 @@
                     <div class="mb-3">
                         <label class="form-label">Total Score:</label>
                         <input type="number" name="total_score" class="form-control" placeholder="e.g. 650" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Target Face Image (Optional):</label>
+                        <input type="file" name="target_image" class="form-control" accept="image/*">
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Save Score</button>
                 </form>
