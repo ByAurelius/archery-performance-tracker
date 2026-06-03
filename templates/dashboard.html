@@ -1,15 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Archery Tracker</title>
-</head>
-<body>
-    <h2>Welcome to your Dashboard, {{ username }}!</h2>
-    <p>Your archery statistics, bow settings, and training plans will appear here soon.</p>
-
-    <br>
-    <a href="/logout">Logout</a>
-</body>
-</html>
+{% extends 'base.html' %}
+{% block content %}
+<div class="alert alert-info">
+    <h4>Welcome to your Dashboard, {{ username }}!</h4>
+    <p class="mb-0">Your archery statistics, bow settings, and training plans will appear here soon.</p>
+</div>
+{% endblock %}
