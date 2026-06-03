@@ -24,7 +24,7 @@
                         <td class="align-middle fw-bold">{{ athlete.username }}</td>
                         <td class="align-middle">{{ athlete.email }}</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary">View Stats (Coming Soon)</button>
+                            <a href="/athlete/{{ athlete.id }}" class="btn btn-sm btn-primary">View Stats</a>
                         </td>
                     </tr>
                     {% endfor %}

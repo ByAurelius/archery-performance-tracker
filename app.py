@@ -19,7 +19,6 @@ class Archer(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
-    # YENI SUTUN: Kullanici antrenor mu? (Varsayilan olarak Hayir)
     is_coach = db.Column(db.Boolean, default=False)
     scores = db.relationship('Score', backref='shooter', lazy=True)
     sight_marks = db.relationship('SightMark', backref='shooter', lazy=True)
@@ -58,7 +57,6 @@ def register_page():
         form_username = request.form.get('username')
         form_email = request.form.get('email')
         form_password = request.form.get('password')
-        # Formdan gelen checkbox isaretli mi kontrol et
         form_is_coach = request.form.get('is_coach') == 'on'
 
         hashed_password = generate_password_hash(form_password)
@@ -74,16 +72,12 @@ def login_page():
     if request.method == 'POST':
         form_email = request.form.get('email')
         form_password = request.form.get('password')
-
         archer = Archer.query.filter_by(email=form_email).first()
 
         if archer and check_password_hash(archer.password, form_password):
             session['user_id'] = archer.id
             session['username'] = archer.username
-            # Session'a kullanicinin rolunu de kaydediyoruz
             session['is_coach'] = archer.is_coach
-
-            # Eger antrenorse farkli, sporcuysa farkli sayfaya yonlendir
             if archer.is_coach:
                 return redirect(url_for('coach_dashboard_page'))
             else:
@@ -93,16 +87,33 @@ def login_page():
     return render_template('login.html')
 
 
-# YENI SAYFA: Antrenor Dashboard'u
 @app.route('/coach_dashboard')
 def coach_dashboard_page():
-    # Sadece giris yapmis ANTRENORLER bu sayfayi gorebilir
     if 'user_id' in session and session.get('is_coach'):
-        # Veritabanindan sadece sporculari (is_coach=False olanlari) cek
         athletes = Archer.query.filter_by(is_coach=False).all()
         return render_template('coach_dashboard.html', username=session['username'], athletes=athletes)
     else:
         return redirect(url_for('home_page'))
+
+
+# YENI SAYFA: Antrenorun Sporcu Detaylarini Gordugu Route
+@app.route('/athlete/<int:athlete_id>')
+def athlete_stats_page(athlete_id):
+    if 'user_id' not in session or not session.get('is_coach'):
+        return redirect(url_for('home_page'))
+
+    # İlgili sporcuyu veritabaninda bul
+    athlete = Archer.query.get_or_404(athlete_id)
+
+    # Eger id'si verilen kisi antrenorse guvenlik amaciyla gosterme
+    if athlete.is_coach:
+        return redirect(url_for('coach_dashboard_page'))
+
+    athlete_scores = Score.query.filter_by(archer_id=athlete.id).all()
+    athlete_sight_marks = SightMark.query.filter_by(archer_id=athlete.id).all()
+
+    return render_template('athlete_stats.html', athlete=athlete, scores=athlete_scores,
+                           sight_marks=athlete_sight_marks)
 
 
 @app.route('/add_score', methods=['GET', 'POST'])
@@ -147,7 +158,6 @@ def add_sight_mark_page():
 
 @app.route('/dashboard')
 def dashboard_page():
-    # Eger giren kisi antrenorse kendi dashboarduna zorla
     if session.get('is_coach'): return redirect(url_for('coach_dashboard_page'))
 
     if 'user_id' in session:

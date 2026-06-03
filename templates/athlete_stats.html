@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Performance Stats: <span class="text-primary">{{ athlete.username }}</span></h2>
+    <a href="/coach_dashboard" class="btn btn-secondary">&larr; Back to Dashboard</a>
+</div>
+
+{% if scores %}
+<div class="row mb-5">
+    <div class="col-md-12">
+        <div class="card shadow border-primary">
+            <div class="card-body">
+                <h4 class="card-title text-center mb-3">Athlete Progress</h4>
+                <canvas id="scoreChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-7 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-body">
+                <h4 class="card-title mb-3">Training History</h4>
+                {% if scores %}
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Distance</th>
+                            <th>Arrows</th>
+                            <th>Total Score</th>
+                            <th>Target Image</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for score in scores %}
+                        <tr>
+                            <td>{{ score.date }}</td>
+                            <td>{{ score.distance }} m</td>
+                            <td>{{ score.arrows_shot }}</td>
+                            <td><strong>{{ score.total_score }}</strong></td>
+                            <td>
+                                {% if score.image_file %}
+                                <a href="{{ url_for('static', filename='uploads/' + score.image_file) }}" target="_blank" class="btn btn-sm btn-outline-info">View</a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="alert alert-warning">This athlete has not recorded any scores yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-body">
+                <h4 class="card-title mb-3">Sight Marks</h4>
+                {% if sight_marks %}
+                <table class="table table-striped table-hover">
+                    <thead class="table-secondary">
+                        <tr>
+                            <th>Distance</th>
+                            <th>Setting</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mark in sight_marks %}
+                        <tr>
+                            <td><strong>{{ mark.distance }} m</strong></td>
+                            <td>{{ mark.setting }}</td>
+                            <td>{{ mark.date_recorded }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="alert alert-info">No sight marks recorded yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if scores %}
+<script>
+    const chartDates = [{% for score in scores %}"{{ score.date }}",{% endfor %}];
+    const chartScores = [{% for score in scores %}{{ score.total_score }},{% endfor %}];
+
+    const ctx = document.getElementById('scoreChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartDates,
+            datasets: [{
+                label: 'Total Score',
+                data: chartScores,
+                borderColor: 'rgba(13, 110, 253, 1)',
+                backgroundColor: 'rgba(13, 110, 253, 0.2)',
+                borderWidth: 3,
+                tension: 0.3,
+                fill: true,
+                pointBackgroundColor: 'rgba(13, 110, 253, 1)',
+                pointRadius: 5
+            }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: false } } }
+    });
+</script>
+{% endif %}
+{% endblock %}
