@@ -1,8 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+
+# Security Key for Sessions (Oturum hafizasi icin guvenlik anahtari)
+app.secret_key = 'archery_secret_key_123'
 
 # Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///archery.db'
@@ -20,7 +23,6 @@ class Archer(db.Model):
     def __repr__(self):
         return f"Archer('{self.username}', '{self.email}')"
 
-# Create the database tables
 with app.app_context():
     db.create_all()
 
@@ -28,27 +30,61 @@ with app.app_context():
 def home_page():
     return render_template('index.html')
 
-# Registration Route
 @app.route('/register', methods=['GET', 'POST'])
 def register_page():
     if request.method == 'POST':
-        # Get data from the HTML form
         form_username = request.form.get('username')
         form_email = request.form.get('email')
         form_password = request.form.get('password')
 
-        # Hash the password for security
         hashed_password = generate_password_hash(form_password)
 
-        # Create new archer and save to database
         new_archer = Archer(username=form_username, email=form_email, password=hashed_password)
         db.session.add(new_archer)
         db.session.commit()
 
-        # Redirect to home page after successful registration
-        return redirect(url_for('home_page'))
+        return redirect(url_for('login_page'))
 
     return render_template('register.html')
+
+# Login Route
+@app.route('/login', methods=['GET', 'POST'])
+def login_page():
+    if request.method == 'POST':
+        form_email = request.form.get('email')
+        form_password = request.form.get('password')
+
+        # Find the user by email
+        archer = Archer.query.filter_by(email=form_email).first()
+
+        # Check if user exists and password is correct
+        if archer and check_password_hash(archer.password, form_password):
+            # Save user info in session memory
+            session['user_id'] = archer.id
+            session['username'] = archer.username
+            return redirect(url_for('dashboard_page'))
+        else:
+            return "<h1>Invalid Email or Password!</h1>"
+
+    return render_template('login.html')
+
+# Dashboard Route
+@app.route('/dashboard')
+def dashboard_page():
+    # Check if user is logged in
+    if 'user_id' in session:
+        return render_template('dashboard.html', username=session['username'])
+    else:
+        # If not logged in, send them back to login page
+        return redirect(url_for('login_page'))
+
+# Logout Route
+@app.route('/logout')
+def logout_page():
+    # Clear the session memory
+    session.pop('user_id', None)
+    session.pop('username', None)
+    return redirect(url_for('home_page'))
 
 if __name__ == '__main__':
     app.run(debug=True)
