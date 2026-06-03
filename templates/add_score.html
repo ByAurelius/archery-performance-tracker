@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-body">
+                <h3 class="card-title text-center mb-4">Add Training Score</h3>
+                <form method="POST" action="/add_score">
+                    <div class="mb-3">
+                        <label class="form-label">Date:</label>
+                        <input type="date" name="date" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Distance (Meters):</label>
+                        <input type="number" name="distance" class="form-control" placeholder="e.g. 70" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Arrows Shot:</label>
+                        <input type="number" name="arrows_shot" class="form-control" placeholder="e.g. 72" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Total Score:</label>
+                        <input type="number" name="total_score" class="form-control" placeholder="e.g. 650" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Save Score</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

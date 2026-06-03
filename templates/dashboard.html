@@ -1,7 +1,41 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="alert alert-info">
-    <h4>Welcome to your Dashboard, {{ username }}!</h4>
-    <p class="mb-0">Your archery statistics, bow settings, and training plans will appear here soon.</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Welcome, {{ username }}!</h2>
+    <a href="/add_score" class="btn btn-success">+ Add New Score</a>
+</div>
+
+<div class="card shadow">
+    <div class="card-body">
+        <h4 class="card-title mb-3">Your Training History</h4>
+
+        {% if scores %}
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Date</th>
+                    <th>Distance</th>
+                    <th>Arrows Shot</th>
+                    <th>Total Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in scores %}
+                <tr>
+                    <td>{{ score.date }}</td>
+                    <td>{{ score.distance }} m</td>
+                    <td>{{ score.arrows_shot }}</td>
+                    <td><strong>{{ score.total_score }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="alert alert-warning">
+            You haven't recorded any scores yet. Click the button above to add your first training!
+        </div>
+        {% endif %}
+
+    </div>
 </div>
 {% endblock %}
