@@ -104,7 +104,7 @@
                         <tr>
                             <th>Distance</th>
                             <th>Setting</th>
-                            <th>Date</th>
+                            <th>Photo</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -112,7 +112,13 @@
                         <tr>
                             <td><strong>{{ mark.distance }} m</strong></td>
                             <td>{{ mark.setting }}</td>
-                            <td>{{ mark.date_recorded }}</td>
+                            <td>
+                                {% if mark.image_file %}
+                                <a href="{{ url_for('static', filename='uploads/' + mark.image_file) }}" target="_blank" class="btn btn-sm btn-outline-warning">View</a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
