@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Training Details: <span class="text-primary">{{ score.date }}</span></h2>
+    <div>
+        <!-- YENİ EKLENEN: Eğer fotoğraf varsa kanıt butonu çıkar -->
+        {% if score.image_file %}
+        <a href="{{ url_for('static', filename='uploads/' + score.image_file) }}" target="_blank" class="btn btn-info text-white me-2">📸 View Real Photo</a>
+        {% endif %}
+        <button onclick="history.back()" class="btn btn-secondary">&larr; Go Back</button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-5 mb-4">
+        <div class="card shadow border-info">
+            <div class="card-header bg-info text-white text-center">
+                <h5 class="mb-0">Target Face Record</h5>
+            </div>
+            <div class="card-body text-center">
+                <canvas id="targetCanvas" width="400" height="400" style="border-radius: 50%; box-shadow: 0px 0px 15px rgba(0,0,0,0.2);"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card shadow">
+            <div class="card-body">
+                <h4 class="card-title text-center mb-4">Official Scorecard</h4>
+
+                <div class="row mb-3 bg-light p-2 rounded border">
+                    <div class="col-4 text-center">
+                        <span class="text-muted small">Distance</span><br>
+                        <strong>{{ score.distance }} m</strong>
+                    </div>
+                    <div class="col-4 text-center">
+                        <span class="text-muted small">Total Arrows</span><br>
+                        <h4 class="text-primary mb-0">{{ score.arrows_shot }}</h4>
+                    </div>
+                    <div class="col-4 text-center">
+                        <span class="text-muted small">Total Score</span><br>
+                        <h4 class="text-success mb-0">{{ score.total_score }}</h4>
+                    </div>
+                </div>
+
+                <div class="table-responsive border rounded">
+                    <table class="table table-sm table-bordered text-center align-middle mb-0" id="scoreTable">
+                        <thead class="table-dark">
+                            <tr id="tableHeaderRow"></tr>
+                        </thead>
+                        <tbody id="scoreTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const arrowsJson = `{{ score.arrow_data | safe }}`;
+    const arrows = arrowsJson ? JSON.parse(arrowsJson) : [];
+    const arrowsPerEnd = {{ score.arrows_per_end }};
+
+    const canvas = document.getElementById('targetCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function drawTarget() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const centerX = 200, centerY = 200;
+        const ringColors = ['#ffffff', '#ffffff', '#000000', '#000000', '#00aae4', '#00aae4', '#f22020', '#f22020', '#ffe552', '#ffe552'];
+
+        for (let i = 1; i <= 10; i++) {
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 200 - ((i - 1) * 20), 0, 2 * Math.PI);
+            ctx.fillStyle = ringColors[i - 1]; ctx.fill();
+            ctx.lineWidth = 1; ctx.strokeStyle = (i >= 3 && i <= 4) ? '#ffffff' : '#000000'; ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI); ctx.strokeStyle = '#000000'; ctx.stroke();
+    }
+
+    function drawArrows() {
+        arrows.forEach(arrow => {
+            ctx.beginPath();
+            ctx.moveTo(arrow.x - 6, arrow.y - 6); ctx.lineTo(arrow.x + 6, arrow.y + 6);
+            ctx.moveTo(arrow.x + 6, arrow.y - 6); ctx.lineTo(arrow.x - 6, arrow.y + 6);
+            ctx.strokeStyle = (arrow.score === 3 || arrow.score === 4) ? '#ffffff' : '#000000';
+            ctx.lineWidth = 3; ctx.stroke();
+        });
+    }
+
+    function renderTable() {
+        let theadRow = document.getElementById('tableHeaderRow');
+        let headerHtml = `<th>End</th>`;
+        for(let i=1; i<=arrowsPerEnd; i++) { headerHtml += `<th>${i}</th>`; }
+        headerHtml += `<th class="bg-primary text-white">E.T.</th><th class="bg-success text-white">R.T.</th>`;
+        theadRow.innerHTML = headerHtml;
+
+        const tbody = document.getElementById('scoreTableBody');
+        let runningTotal = 0;
+
+        for (let i = 0; i < 12; i++) {
+            let tr = document.createElement('tr');
+            let rowHtml = `<td><strong>${i + 1}</strong></td>`;
+            let endTotal = 0;
+            let endHasArrows = false;
+
+            for (let j = 0; j < arrowsPerEnd; j++) {
+                let arrowIndex = (i * arrowsPerEnd) + j;
+                if (arrows[arrowIndex]) {
+                    let s = arrows[arrowIndex].score;
+                    let displayScore = s === 0 ? 'M' : (s === 10 ? 'X/10' : s);
+
+                    let bgColor = "";
+                    if(s >= 9) bgColor = "bg-warning text-dark";
+                    else if(s >= 7) bgColor = "bg-danger text-white";
+                    else if(s >= 5) bgColor = "bg-info text-dark";
+                    else if(s >= 3) bgColor = "bg-dark text-white";
+
+                    rowHtml += `<td class="${bgColor} fw-bold">${displayScore}</td>`;
+                    endTotal += s;
+                    endHasArrows = true;
+                } else {
+                    rowHtml += `<td></td>`;
+                }
+            }
+            if (endHasArrows) runningTotal += endTotal;
+
+            rowHtml += `<td class="bg-light fw-bold text-primary">${endHasArrows ? endTotal : ''}</td>`;
+            rowHtml += `<td class="bg-light fw-bold text-success">${endHasArrows ? runningTotal : ''}</td>`;
+            tr.innerHTML = rowHtml;
+            tbody.appendChild(tr);
+        }
+    }
+
+    drawTarget();
+    drawArrows();
+    renderTable();
+</script>
+{% endblock %}

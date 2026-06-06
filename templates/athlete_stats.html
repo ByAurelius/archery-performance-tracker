@@ -7,6 +7,34 @@
     <a href="/coach_dashboard" class="btn btn-secondary">&larr; Back to Dashboard</a>
 </div>
 
+<div class="card shadow border-info mb-4">
+    <div class="card-body">
+        <h5 class="card-title text-info mb-3">Athlete Physical Profile</h5>
+        <div class="row text-center">
+            <div class="col-md-3">
+                <span class="text-muted small">Full Name</span><br>
+                <strong>{{ athlete.first_name or '-' }} {{ athlete.last_name or '-' }}</strong>
+            </div>
+            <div class="col-md-2">
+                <span class="text-muted small">Age</span><br>
+                <strong>{{ athlete.age or '-' }}</strong>
+            </div>
+            <div class="col-md-2">
+                <span class="text-muted small">Height</span><br>
+                <strong>{{ athlete.height or '-' }} cm</strong>
+            </div>
+            <div class="col-md-2">
+                <span class="text-muted small">Weight</span><br>
+                <strong>{{ athlete.weight or '-' }} kg</strong>
+            </div>
+            <div class="col-md-3">
+                <span class="text-muted small">Draw Length</span><br>
+                <strong>{{ athlete.draw_length or '-' }}</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row mb-5">
     <div class="col-md-5">
         <div class="card shadow border-success">
@@ -92,14 +120,14 @@
             <div class="card-body">
                 <h4 class="card-title mb-3">Training History</h4>
                 {% if scores %}
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover align-middle">
                     <thead class="table-dark">
                         <tr>
                             <th>Date</th>
                             <th>Distance</th>
-                            <th>Arrows</th>
                             <th>Total Score</th>
                             <th>Target Image</th>
+                            <th>Scorecard</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -107,14 +135,17 @@
                         <tr>
                             <td>{{ score.date }}</td>
                             <td>{{ score.distance }} m</td>
-                            <td>{{ score.arrows_shot }}</td>
                             <td><strong>{{ score.total_score }}</strong></td>
                             <td>
                                 {% if score.image_file %}
-                                <a href="{{ url_for('static', filename='uploads/' + score.image_file) }}" target="_blank" class="btn btn-sm btn-outline-info">View</a>
+                                <a href="{{ url_for('static', filename='uploads/' + score.image_file) }}" target="_blank" class="btn btn-sm btn-outline-info">Proof</a>
                                 {% else %}
                                 <span class="text-muted">-</span>
                                 {% endif %}
+                            </td>
+                            <td>
+                                <!-- YENI EKLENEN BUTON -->
+                                <a href="/view_training/{{ score.id }}" class="btn btn-sm btn-primary">View Scorecard</a>
                             </td>
                         </tr>
                         {% endfor %}
@@ -132,7 +163,7 @@
             <div class="card-body">
                 <h4 class="card-title mb-3">Sight Marks</h4>
                 {% if sight_marks %}
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover align-middle">
                     <thead class="table-secondary">
                         <tr>
                             <th>Distance</th>

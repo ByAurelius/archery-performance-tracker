@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>My Training Sessions</h2>
+    <a href="/add_score" class="btn btn-success">+ New Training</a>
+</div>
+
+<div class="card shadow">
+    <div class="card-body">
+        {% if scores %}
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Date</th>
+                        <th>Distance</th>
+                        <th>Arrows</th>
+                        <th>Total Score</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for score in scores %}
+                    <tr>
+                        <td><strong>{{ score.date }}</strong></td>
+                        <td>{{ score.distance }} m</td>
+                        <td>{{ score.arrows_shot }} ({{ score.arrows_per_end }} per end)</td>
+                        <td class="text-success fw-bold">{{ score.total_score }}</td>
+                        <td>
+                            <a href="/view_training/{{ score.id }}" class="btn btn-sm btn-primary">View Scorecard</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">You haven't recorded any training sessions yet.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
