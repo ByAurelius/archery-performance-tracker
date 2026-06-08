@@ -15,6 +15,28 @@
                 </div>
             </div>
         </div>
+
+        <div class="card shadow border-info mt-4">
+            <div class="card-header bg-info text-white text-center">
+                <h6 class="mb-0">🌤️ Live Environmental Conditions</h6>
+            </div>
+            <div class="card-body py-3">
+                <div class="row text-center small">
+                    <div class="col-4 border-end">
+                        <span class="text-muted">Temp</span><br>
+                        <span id="displayTemp" class="fw-bold text-dark">Fetching...</span>
+                    </div>
+                    <div class="col-4 border-end">
+                        <span class="text-muted">Wind Speed</span><br>
+                        <span id="displayWindSpeed" class="fw-bold text-dark">Fetching...</span>
+                    </div>
+                    <div class="col-4">
+                        <span class="text-muted">Wind Dir</span><br>
+                        <span id="displayWindDir" class="fw-bold text-dark">Fetching...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="col-md-7">
@@ -22,7 +44,6 @@
             <div class="card-body">
                 <h4 class="card-title text-center mb-4">Official Scorecard</h4>
 
-                <!-- enctype="multipart/form-data" resim yuklemek icin HAYATI onem tasir -->
                 <form method="POST" action="/add_score" id="scoreForm" enctype="multipart/form-data">
                     <div class="row mb-3">
                         <div class="col-4">
@@ -42,11 +63,14 @@
                         </div>
                     </div>
 
-                    <!-- YENİ EKLENEN: Fotoğraf Kanıtı Yükleme Alanı -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">Target Photo Proof (Optional):</label>
                         <input type="file" name="target_image" class="form-control" accept="image/*">
                     </div>
+
+                    <input type="hidden" name="weather_temp" id="inputTemp" value="-">
+                    <input type="hidden" name="wind_speed" id="inputWindSpeed" value="-">
+                    <input type="hidden" name="wind_direction" id="inputWindDir" value="-">
 
                     <div class="row mb-3 bg-light p-2 rounded border">
                         <div class="col-6 text-center">
@@ -84,6 +108,59 @@
     const canvas = document.getElementById('targetCanvas');
     const ctx = canvas.getContext('2d');
     let arrows = [];
+
+    // --- LIVE WEATHER API ENTEGRASYONU ---
+    function fetchWeather(lat, lon) {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m`;
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                const temp = data.current.temperature_2m + " °C";
+                const wind = data.current.wind_speed_10m + " km/h";
+                const deg = data.current.wind_direction_10m;
+
+                // Rüzgar derece verisini yöne çevirme (N, E, S, W)
+                let dir = "N";
+                if (deg > 22.5 && deg <= 67.5) dir = "NE";
+                else if (deg > 67.5 && deg <= 112.5) dir = "E";
+                else if (deg > 112.5 && deg <= 157.5) dir = "SE";
+                else if (deg > 157.5 && deg <= 202.5) dir = "S";
+                else if (deg > 202.5 && deg <= 247.5) dir = "SW";
+                else if (deg > 247.5 && deg <= 292.5) dir = "W";
+                else if (deg > 292.5 && deg <= 337.5) dir = "NW";
+
+                // Ekrana yazdır
+                document.getElementById('displayTemp').innerText = temp;
+                document.getElementById('displayWindSpeed').innerText = wind;
+                document.getElementById('displayWindDir').innerText = dir + ` (${deg}°)`;
+
+                // Form inputlarına ata
+                document.getElementById('inputTemp').value = temp;
+                document.getElementById('inputWindSpeed').value = wind;
+                document.getElementById('inputWindDir').value = dir + ` (${deg}°)`;
+            })
+            .catch(err => {
+                console.error("Weather error:", err);
+                fallbackWeather();
+            });
+    }
+
+    function fallbackWeather() {
+        // Hata durumunda veya konum reddedilirse akıllı varsayılan merkez (Wrocław) koordinatları çalışır
+        fetchWeather(51.1079, 17.0385);
+    }
+
+    // Tarayıcıdan anlık GPS konumu isteme algoritması
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => { fetchWeather(pos.coords.latitude, pos.coords.longitude); },
+            (err) => { fallbackWeather(); }
+        );
+    } else {
+        fallbackWeather();
+    }
+    // --- WEATHER API END ---
 
     function drawTarget() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
