@@ -1,7 +1,76 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="text-center">
-    <h1>Archery Performance Tracking System</h1>
-    <p class="lead mt-3">Welcome! This platform is designed to track athletes' scores, training data, and equipment settings.</p>
+
+<style>
+    /* Arkaplan Resmini Tum Ekrana Yayma (Unsplash API'den yuksek cozunurluklu gercek fotograf) */
+    body {
+        /* Resmi hafif karartarak uzerindeki yazilarin okunmasini sagliyoruz */
+        background: linear-gradient(rgba(10, 25, 47, 0.75), rgba(10, 25, 47, 0.85)),
+                    url('https://images.unsplash.com/photo-1511516208577-fb3283bc9e65?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80') no-repeat center center fixed;
+        background-size: cover;
+    }
+
+    /* Gorseli icine alan alanin konumu */
+    .hero-section {
+        margin-top: 10vh;
+        text-align: center;
+        animation: fadeInUp 1s ease-out;
+    }
+
+    /* Ana Baslik CSS'i */
+    .hero-title {
+        font-size: 4.5rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #f39c12; /* Okculuk Sarisi */
+        text-shadow: 2px 4px 15px rgba(0,0,0,0.6);
+        margin-bottom: 20px;
+    }
+
+    /* Alt Baslik */
+    .hero-subtitle {
+        font-size: 1.5rem;
+        font-weight: 300;
+        color: #e6f1ff;
+        margin-bottom: 40px;
+        line-height: 1.6;
+    }
+
+    /* PROFESYONEL BUZLU CAM (GLASSMORPHISM) EFEKTI */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.05); /* Cok hafif beyazlik */
+        backdrop-filter: blur(12px); /* Arkadaki resmi bulandirir */
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1); /* Ince parlak sinir cizgisi */
+        border-radius: 20px;
+        padding: 50px;
+        box-shadow: 0 25px 45px rgba(0,0,0,0.3);
+    }
+
+    /* Yukaridan asagi dogru yumusakca gelme animasyonu */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(40px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="row justify-content-center hero-section">
+    <div class="col-md-10 col-lg-8">
+        <div class="glass-card">
+            <h1 class="hero-title">Elevate Your Aim</h1>
+            <p class="hero-subtitle">
+                The ultimate digital scorecard and training management platform for elite archers and coaches. Track every arrow, analyze your progress, and hit your peak performance.
+            </p>
+
+            <hr class="bg-light mb-4" style="height: 2px; width: 60%; margin: auto; opacity: 0.3;">
+
+            <div class="d-flex flex-column flex-sm-row justify-content-center gap-3 mt-4">
+                <a href="/register" class="btn btn-warning btn-lg px-5 py-3 fw-bold shadow-lg">Start Your Journey</a>
+                <a href="/login" class="btn btn-outline-light btn-lg px-5 py-3 fw-bold">Login to Portal</a>
+            </div>
+        </div>
+    </div>
 </div>
+
 {% endblock %}
