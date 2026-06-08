@@ -63,6 +63,26 @@
                         </div>
                     </div>
 
+                    <div class="row mb-3 bg-light p-3 rounded border border-warning">
+                        <h6 class="text-center text-dark mb-3 fw-bold">🧠 Athlete Readiness Form</h6>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-danger">Fatigue Level (1-10):</label>
+                            <div class="d-flex align-items-center">
+                                <input type="range" name="fatigue_level" class="form-range flex-grow-1 me-2" min="1" max="10" value="5" oninput="this.nextElementSibling.innerText = this.value">
+                                <span class="badge bg-danger fs-6">5</span>
+                            </div>
+                            <small class="text-muted" style="font-size: 0.7rem;">1 = Fresh, 10 = Exhausted</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-success">Focus Level (1-10):</label>
+                            <div class="d-flex align-items-center">
+                                <input type="range" name="focus_level" class="form-range flex-grow-1 me-2" min="1" max="10" value="5" oninput="this.nextElementSibling.innerText = this.value">
+                                <span class="badge bg-success fs-6">5</span>
+                            </div>
+                            <small class="text-muted" style="font-size: 0.7rem;">1 = Distracted, 10 = Locked In</small>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold">Target Photo Proof (Optional):</label>
                         <input type="file" name="target_image" class="form-control" accept="image/*">
@@ -109,18 +129,14 @@
     const ctx = canvas.getContext('2d');
     let arrows = [];
 
-    // --- LIVE WEATHER API ENTEGRASYONU ---
     function fetchWeather(lat, lon) {
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m`;
-
         fetch(url)
             .then(response => response.json())
             .then(data => {
                 const temp = data.current.temperature_2m + " °C";
                 const wind = data.current.wind_speed_10m + " km/h";
                 const deg = data.current.wind_direction_10m;
-
-                // Rüzgar derece verisini yöne çevirme (N, E, S, W)
                 let dir = "N";
                 if (deg > 22.5 && deg <= 67.5) dir = "NE";
                 else if (deg > 67.5 && deg <= 112.5) dir = "E";
@@ -130,82 +146,46 @@
                 else if (deg > 247.5 && deg <= 292.5) dir = "W";
                 else if (deg > 292.5 && deg <= 337.5) dir = "NW";
 
-                // Ekrana yazdır
                 document.getElementById('displayTemp').innerText = temp;
                 document.getElementById('displayWindSpeed').innerText = wind;
                 document.getElementById('displayWindDir').innerText = dir + ` (${deg}°)`;
-
-                // Form inputlarına ata
                 document.getElementById('inputTemp').value = temp;
                 document.getElementById('inputWindSpeed').value = wind;
                 document.getElementById('inputWindDir').value = dir + ` (${deg}°)`;
             })
-            .catch(err => {
-                console.error("Weather error:", err);
-                fallbackWeather();
-            });
+            .catch(err => { fallbackWeather(); });
     }
 
-    function fallbackWeather() {
-        // Hata durumunda veya konum reddedilirse akıllı varsayılan merkez (Wrocław) koordinatları çalışır
-        fetchWeather(51.1079, 17.0385);
-    }
-
-    // Tarayıcıdan anlık GPS konumu isteme algoritması
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => { fetchWeather(pos.coords.latitude, pos.coords.longitude); },
-            (err) => { fallbackWeather(); }
-        );
-    } else {
-        fallbackWeather();
-    }
-    // --- WEATHER API END ---
+    function fallbackWeather() { fetchWeather(51.1079, 17.0385); }
+    if (navigator.geolocation) { navigator.geolocation.getCurrentPosition((pos) => { fetchWeather(pos.coords.latitude, pos.coords.longitude); }, (err) => { fallbackWeather(); }); } else { fallbackWeather(); }
 
     function drawTarget() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const centerX = 200, centerY = 200;
         const ringColors = ['#ffffff', '#ffffff', '#000000', '#000000', '#00aae4', '#00aae4', '#f22020', '#f22020', '#ffe552', '#ffe552'];
-
         for (let i = 1; i <= 10; i++) {
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, 200 - ((i - 1) * 20), 0, 2 * Math.PI);
-            ctx.fillStyle = ringColors[i - 1];
-            ctx.fill();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = (i >= 3 && i <= 4) ? '#ffffff' : '#000000';
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(centerX, centerY, 200 - ((i - 1) * 20), 0, 2 * Math.PI);
+            ctx.fillStyle = ringColors[i - 1]; ctx.fill();
+            ctx.lineWidth = 1; ctx.strokeStyle = (i >= 3 && i <= 4) ? '#ffffff' : '#000000'; ctx.stroke();
         }
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
-        ctx.strokeStyle = '#000000';
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI); ctx.strokeStyle = '#000000'; ctx.stroke();
     }
 
     canvas.addEventListener('click', function(event) {
         let arrowsPerEnd = parseInt(document.getElementById('arrowsPerEndSelect').value);
         let maxArrows = 12 * arrowsPerEnd;
-
-        if (arrows.length >= maxArrows) {
-            alert("Scorecard is full! (12 ends completed)");
-            return;
-        }
-
+        if (arrows.length >= maxArrows) { alert("Scorecard is full!"); return; }
         const rect = canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+        const x = event.clientX - rect.left; const y = event.clientY - rect.top;
         const distance = Math.sqrt(Math.pow(x - 200, 2) + Math.pow(y - 200, 2));
-
         let score = distance <= 200 ? Math.max(1, Math.ceil((200 - distance) / 20)) : 0;
 
         arrows.push({ x: x, y: y, score: score });
-
         let currentSetIndex = Math.floor((arrows.length - 1) / arrowsPerEnd);
         let setStart = currentSetIndex * arrowsPerEnd;
         let currentSetArrows = arrows.slice(setStart);
         currentSetArrows.sort((a, b) => b.score - a.score);
         arrows.splice(setStart, currentSetArrows.length, ...currentSetArrows);
-
         updateScreen();
     });
 
@@ -215,86 +195,61 @@
             ctx.moveTo(arrow.x - 6, arrow.y - 6); ctx.lineTo(arrow.x + 6, arrow.y + 6);
             ctx.moveTo(arrow.x + 6, arrow.y - 6); ctx.lineTo(arrow.x - 6, arrow.y + 6);
             ctx.strokeStyle = (arrow.score === 3 || arrow.score === 4) ? '#ffffff' : '#000000';
-            ctx.lineWidth = 3;
-            ctx.stroke();
+            ctx.lineWidth = 3; ctx.stroke();
         });
     }
 
     function changeArrowConfig() {
         if(arrows.length > 0) {
-            if(confirm("Changing the configuration will clear your current arrows. Proceed?")) {
-                arrows = [];
-            } else {
-                document.getElementById('arrowsPerEndSelect').value = document.getElementById('arrowsPerEndSelect').value == "3" ? "6" : "3";
-                return;
-            }
+            if(confirm("Changing configuration clears current arrows. Proceed?")) { arrows = []; }
+            else { document.getElementById('arrowsPerEndSelect').value = document.getElementById('arrowsPerEndSelect').value == "3" ? "6" : "3"; return; }
         }
         updateScreen();
     }
 
     function updateScreen() {
-        drawTarget();
-        drawArrows();
-
+        drawTarget(); drawArrows();
         let arrowsPerEnd = parseInt(document.getElementById('arrowsPerEndSelect').value);
-
         let theadRow = document.getElementById('tableHeaderRow');
         let headerHtml = `<th>End</th>`;
         for(let i=1; i<=arrowsPerEnd; i++) { headerHtml += `<th>${i}</th>`; }
         headerHtml += `<th class="bg-primary text-white">E.T.</th><th class="bg-success text-white">R.T.</th>`;
         theadRow.innerHTML = headerHtml;
 
-        const tbody = document.getElementById('scoreTableBody');
-        tbody.innerHTML = '';
-
+        const tbody = document.getElementById('scoreTableBody'); tbody.innerHTML = '';
         let runningTotal = 0;
-
         for (let i = 0; i < 12; i++) {
             let tr = document.createElement('tr');
             let rowHtml = `<td><strong>${i + 1}</strong></td>`;
-
-            let endTotal = 0;
-            let endHasArrows = false;
+            let endTotal = 0; let endHasArrows = false;
 
             for (let j = 0; j < arrowsPerEnd; j++) {
                 let arrowIndex = (i * arrowsPerEnd) + j;
                 if (arrows[arrowIndex]) {
                     let s = arrows[arrowIndex].score;
                     let displayScore = s === 0 ? 'M' : (s === 10 ? 'X/10' : s);
-
                     let bgColor = "";
                     if(s >= 9) bgColor = "bg-warning text-dark";
                     else if(s >= 7) bgColor = "bg-danger text-white";
                     else if(s >= 5) bgColor = "bg-info text-dark";
                     else if(s >= 3) bgColor = "bg-dark text-white";
-
                     rowHtml += `<td class="${bgColor} fw-bold">${displayScore}</td>`;
-                    endTotal += s;
-                    endHasArrows = true;
-                } else {
-                    rowHtml += `<td></td>`;
-                }
+                    endTotal += s; endHasArrows = true;
+                } else { rowHtml += `<td></td>`; }
             }
-
             if (endHasArrows) runningTotal += endTotal;
-
             rowHtml += `<td class="bg-light fw-bold text-primary">${endHasArrows ? endTotal : ''}</td>`;
             rowHtml += `<td class="bg-light fw-bold text-success">${endHasArrows ? runningTotal : ''}</td>`;
-
-            tr.innerHTML = rowHtml;
-            tbody.appendChild(tr);
+            tr.innerHTML = rowHtml; tbody.appendChild(tr);
         }
-
         document.getElementById('displayArrowsShot').innerText = arrows.length;
         document.getElementById('inputArrowsShot').value = arrows.length;
         document.getElementById('displayTotalScore').innerText = runningTotal;
         document.getElementById('inputTotalScore').value = runningTotal;
         document.getElementById('arrowDataInput').value = JSON.stringify(arrows);
     }
-
     function undoLastArrow() { arrows.pop(); updateScreen(); }
     function clearTarget() { arrows = []; updateScreen(); }
-
     updateScreen();
 </script>
 {% endblock %}
