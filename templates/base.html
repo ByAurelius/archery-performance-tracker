@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Archery Tracker Pro</title>
+
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -20,17 +21,21 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             padding: 15px 0;
         }
+
         .navbar-brand {
             font-weight: 700;
             letter-spacing: 1.5px;
             color: #f39c12 !important; /* Okculuk sarisi */
         }
+
         .nav-link {
             font-weight: 500;
             font-size: 1.05rem;
             margin-left: 10px;
             transition: all 0.3s ease;
+            color: #e6f1ff;
         }
+
         .nav-link:hover {
             color: #f39c12 !important;
             transform: translateY(-2px);
@@ -44,10 +49,12 @@
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             overflow: hidden;
         }
+
         .card:hover {
             transform: translateY(-5px);
             box-shadow: 0 15px 35px rgba(0,0,0,0.1);
         }
+
         .card-header {
             font-weight: 600;
             letter-spacing: 0.5px;
@@ -61,10 +68,13 @@
             letter-spacing: 0.5px;
             transition: all 0.3s ease;
         }
+
         .btn-success { background-color: #27ae60; border: none; }
         .btn-success:hover { background-color: #219653; transform: scale(1.02); }
+
         .btn-warning { background-color: #f39c12; color: white; border: none; }
         .btn-warning:hover { background-color: #d68910; color: white; transform: scale(1.02); }
+
         .btn-primary { background-color: #2980b9; border: none; }
         .btn-primary:hover { background-color: #2471a3; transform: scale(1.02); }
 
@@ -78,7 +88,12 @@
     <nav class="navbar navbar-expand-lg navbar-dark">
       <div class="container">
         <a class="navbar-brand" href="/">🎯 ArcheryTracker <span class="text-white fw-light">PRO</span></a>
-        <div class="collapse navbar-collapse">
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
             {% if session.get('user_id') %}
                 {% if session.get('is_coach') %}
@@ -86,6 +101,8 @@
                 {% else %}
                     <li class="nav-item"><a class="nav-link" href="/dashboard">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link text-warning" href="/my_trainings">My Trainings</a></li>
+
+                    <li class="nav-item"><a class="nav-link text-info" href="/tuning_log">Equipment Tuning</a></li>
                 {% endif %}
                 <li class="nav-item"><a class="nav-link" href="/profile">My Profile</a></li>
                 <li class="nav-item"><a class="nav-link text-danger" href="/logout">Logout</a></li>
@@ -101,5 +118,7 @@
     <div class="container mt-5">
         {% block content %}{% endblock %}
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

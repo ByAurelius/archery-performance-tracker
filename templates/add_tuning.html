@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow border-info">
+            <div class="card-body">
+                <h3 class="card-title text-center text-info mb-4">Add Bow Tuning Setup</h3>
+                <form method="POST" action="/add_tuning">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Date:</label>
+                            <input type="date" name="date" id="tuningDate" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Bow Name / Model:</label>
+                            <input type="text" name="bow_name" class="form-control" placeholder="e.g. Hoyt Formula Xi" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Brace Height:</label>
+                            <input type="text" name="brace_height" class="form-control" placeholder="e.g. 22.5 cm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Upper Tiller:</label>
+                            <input type="text" name="tiller_upper" class="form-control" placeholder="e.g. 18 cm">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Lower Tiller:</label>
+                            <input type="text" name="tiller_lower" class="form-control" placeholder="e.g. 17.5 cm">
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nocking Point:</label>
+                            <input type="text" name="nocking_point" class="form-control" placeholder="e.g. +6 mm">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Draw Weight (lbs):</label>
+                            <input type="text" name="draw_weight" class="form-control" placeholder="e.g. 42.5 lbs">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Tuning Notes & Feeling:</label>
+                        <textarea name="notes" class="form-control" rows="3" placeholder="How did the bow feel? Any vibration or noise changes?"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-info text-white w-100 fw-bold fs-5">Save Tuning Configuration</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.getElementById('tuningDate').valueAsDate = new Date();
+</script>
+{% endblock %}

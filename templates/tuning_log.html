@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>My Bow Tuning Logs</h2>
+    <a href="/add_tuning" class="btn btn-info text-white fw-bold">+ New Tuning Setup</a>
+</div>
+
+{% if logs %}
+    <div class="row">
+        {% for log in logs %}
+        <div class="col-md-6 mb-4">
+            <div class="card shadow border-secondary h-100">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span class="fs-5">{{ log.bow_name }}</span>
+                    <span class="badge bg-light text-dark">{{ log.date_recorded }}</span>
+                </div>
+                <div class="card-body bg-light">
+                    <div class="row text-center mb-3">
+                        <div class="col-4 border-end">
+                            <small class="text-muted text-uppercase fw-bold">Brace Height</small><br>
+                            <span class="text-dark">{{ log.brace_height or '-' }}</span>
+                        </div>
+                        <div class="col-4 border-end">
+                            <small class="text-muted text-uppercase fw-bold">Draw Weight</small><br>
+                            <span class="text-dark">{{ log.draw_weight or '-' }}</span>
+                        </div>
+                        <div class="col-4">
+                            <small class="text-muted text-uppercase fw-bold">Nock Point</small><br>
+                            <span class="text-dark">{{ log.nocking_point or '-' }}</span>
+                        </div>
+                    </div>
+                    <div class="row text-center mb-3">
+                        <div class="col-6 border-end">
+                            <small class="text-muted text-uppercase fw-bold">Upper Tiller</small><br>
+                            <span class="text-dark">{{ log.tiller_upper or '-' }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted text-uppercase fw-bold">Lower Tiller</small><br>
+                            <span class="text-dark">{{ log.tiller_lower or '-' }}</span>
+                        </div>
+                    </div>
+                    <hr>
+                    <small class="text-muted text-uppercase fw-bold">Notes:</small>
+                    <p class="mb-0 text-dark font-monospace">{{ log.notes or 'No notes provided.' }}</p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info shadow-sm">
+        <h5 class="alert-heading">No tuning logs found!</h5>
+        <p class="mb-0">You haven't recorded any bow configurations yet. Click the button above to log your first setup.</p>
+    </div>
+{% endif %}
+{% endblock %}
