@@ -1,8 +1,12 @@
 {% extends 'base.html' %}
 {% block content %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Training Details: <span class="text-primary">{{ score.date }}</span></h2>
     <div>
+        <button onclick="generatePDF()" class="btn btn-danger text-white me-2 fw-bold">📄 Export to PDF</button>
+
         {% if score.image_file %}
         <a href="{{ url_for('static', filename='uploads/' + score.image_file) }}" target="_blank" class="btn btn-info text-white me-2">📸 View Real Photo</a>
         {% endif %}
@@ -15,89 +19,97 @@
     <span id="fatigueAlertText"></span>
 </div>
 
-<div class="row">
-    <div class="col-md-5 mb-4">
-        <div class="card shadow border-info mb-4">
-            <div class="card-header bg-info text-white text-center">
-                <h5 class="mb-0">Target Face Record</h5>
-            </div>
-            <div class="card-body text-center">
-                <canvas id="targetCanvas" width="400" height="400" style="border-radius: 50%; box-shadow: 0px 0px 15px rgba(0,0,0,0.2);"></canvas>
-            </div>
-        </div>
+<div id="scorecardToPrint" class="p-2 bg-transparent rounded">
 
-        <div class="card shadow border-warning mb-4">
-            <div class="card-header bg-warning text-dark text-center fw-bold">
-                🧠 Athlete Readiness
-            </div>
-            <div class="card-body py-3">
-                <div class="row text-center">
-                    <div class="col-6 border-end">
-                        <span class="text-muted small">Fatigue Level</span><br>
-                        <span class="fw-bold text-danger fs-5">{{ score.fatigue_level or '-' }} / 10</span>
-                    </div>
-                    <div class="col-6">
-                        <span class="text-muted small">Focus Level</span><br>
-                        <span class="fw-bold text-success fs-5">{{ score.focus_level or '-' }} / 10</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card shadow border-secondary">
-            <div class="card-header bg-secondary text-white text-center">
-                <h6 class="mb-0">🌤️ Environmental Conditions</h6>
-            </div>
-            <div class="card-body py-3">
-                <div class="row text-center">
-                    <div class="col-4 border-end">
-                        <span class="text-muted small">Temperature</span><br>
-                        <span class="fw-bold text-dark">{{ score.weather_temp or '-' }}</span>
-                    </div>
-                    <div class="col-4 border-end">
-                        <span class="text-muted small">Wind Speed</span><br>
-                        <span class="fw-bold text-dark">{{ score.wind_speed or '-' }}</span>
-                    </div>
-                    <div class="col-4">
-                        <span class="text-muted small">Wind Dir</span><br>
-                        <span class="fw-bold text-dark">{{ score.wind_direction or '-' }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="text-center mb-4" id="pdfHeader" style="display: none;">
+        <h2 class="text-dark fw-bold mb-0">🎯 ArcheryTracker PRO - Official Scorecard</h2>
+        <p class="text-muted fs-5">Athlete Training Record | Distance: {{ score.distance }}m | Date: {{ score.date }}</p>
+        <hr class="border-dark border-2 opacity-50">
     </div>
 
-    <div class="col-md-7">
-        <div class="card shadow">
-            <div class="card-body">
-                <h4 class="card-title text-center mb-4">Official Scorecard</h4>
+    <div class="row">
+        <div class="col-md-5 mb-4">
+            <div class="card shadow border-info mb-4">
+                <div class="card-header bg-info text-white text-center">
+                    <h5 class="mb-0">Target Face Record</h5>
+                </div>
+                <div class="card-body text-center">
+                    <canvas id="targetCanvas" width="400" height="400" style="border-radius: 50%; box-shadow: 0px 0px 15px rgba(0,0,0,0.2);"></canvas>
+                </div>
+            </div>
 
-                <div class="row mb-3 bg-light p-2 rounded border">
-                    <div class="col-4 text-center">
-                        <span class="text-muted small">Distance</span><br>
-                        <strong>{{ score.distance }} m</strong>
-                    </div>
-                    <div class="col-4 text-center">
-                        <span class="text-muted small">Total Arrows</span><br>
-                        <h4 class="text-primary mb-0">{{ score.arrows_shot }}</h4>
-                    </div>
-                    <div class="col-4 text-center">
-                        <span class="text-muted small">Total Score</span><br>
-                        <h4 class="text-success mb-0">{{ score.total_score }}</h4>
+            <div class="card shadow border-warning mb-4">
+                <div class="card-header bg-warning text-dark text-center fw-bold">
+                    🧠 Athlete Readiness
+                </div>
+                <div class="card-body py-3">
+                    <div class="row text-center">
+                        <div class="col-6 border-end">
+                            <span class="text-muted small">Fatigue Level</span><br>
+                            <span class="fw-bold text-danger fs-5">{{ score.fatigue_level or '-' }} / 10</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted small">Focus Level</span><br>
+                            <span class="fw-bold text-success fs-5">{{ score.focus_level or '-' }} / 10</span>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="table-responsive border rounded">
-                    <table class="table table-sm table-bordered text-center align-middle mb-0" id="scoreTable">
-                        <thead class="table-dark"><tr id="tableHeaderRow"></tr></thead>
-                        <tbody id="scoreTableBody"></tbody>
-                    </table>
+            <div class="card shadow border-secondary">
+                <div class="card-header bg-secondary text-white text-center">
+                    <h6 class="mb-0">🌤️ Environmental Conditions</h6>
+                </div>
+                <div class="card-body py-3">
+                    <div class="row text-center">
+                        <div class="col-4 border-end">
+                            <span class="text-muted small">Temperature</span><br>
+                            <span class="fw-bold text-dark">{{ score.weather_temp or '-' }}</span>
+                        </div>
+                        <div class="col-4 border-end">
+                            <span class="text-muted small">Wind Speed</span><br>
+                            <span class="fw-bold text-dark">{{ score.wind_speed or '-' }}</span>
+                        </div>
+                        <div class="col-4">
+                            <span class="text-muted small">Wind Dir</span><br>
+                            <span class="fw-bold text-dark">{{ score.wind_direction or '-' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card shadow">
+                <div class="card-body">
+                    <h4 class="card-title text-center mb-4" id="scorecardTitle">Official Scorecard</h4>
+
+                    <div class="row mb-3 bg-light p-2 rounded border">
+                        <div class="col-4 text-center">
+                            <span class="text-muted small">Distance</span><br>
+                            <strong>{{ score.distance }} m</strong>
+                        </div>
+                        <div class="col-4 text-center">
+                            <span class="text-muted small">Total Arrows</span><br>
+                            <h4 class="text-primary mb-0">{{ score.arrows_shot }}</h4>
+                        </div>
+                        <div class="col-4 text-center">
+                            <span class="text-muted small">Total Score</span><br>
+                            <h4 class="text-success mb-0">{{ score.total_score }}</h4>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive border rounded">
+                        <table class="table table-sm table-bordered text-center align-middle mb-0" id="scoreTable">
+                            <thead class="table-dark"><tr id="tableHeaderRow"></tr></thead>
+                            <tbody id="scoreTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
 <script>
     const arrowsJson = `{{ score.arrow_data | safe }}`;
     const arrows = arrowsJson ? JSON.parse(arrowsJson) : [];
@@ -105,8 +117,7 @@
     const canvas = document.getElementById('targetCanvas');
     const ctx = canvas.getContext('2d');
 
-    // --- YAPAY ZEKA YORGUNLUK ANALIZI (FATIGUE DETECTION ALGORITHM) ---
-    if (arrows.length >= 12) { // Anlamli bir analiz icin en az 12 ok (2-4 set) atilmis olmali
+    if (arrows.length >= 12) {
         let halfIndex = Math.floor(arrows.length / 2);
         let firstHalf = arrows.slice(0, halfIndex);
         let secondHalf = arrows.slice(halfIndex);
@@ -114,7 +125,6 @@
         let firstHalfAvg = firstHalf.reduce((sum, a) => sum + a.score, 0) / firstHalf.length;
         let secondHalfAvg = secondHalf.reduce((sum, a) => sum + a.score, 0) / secondHalf.length;
 
-        // Eger sporcunun ikinci yariya dususu 1.0 puandan fazlaysa uyar
         if ((firstHalfAvg - secondHalfAvg) >= 1.0) {
             document.getElementById('fatigueAlert').style.display = 'block';
             document.getElementById('fatigueAlertText').innerHTML =
@@ -122,7 +132,6 @@
                 `This indicates a severe physical or mental fatigue towards the end of the session. A conditioning check or rest period is recommended.`;
         }
     }
-    // ------------------------------------------------------------------
 
     function drawTarget() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -181,5 +190,31 @@
         }
     }
     drawTarget(); drawArrows(); renderTable();
+
+    // --- YENI: PDF OLUSTURMA FONKSIYONU ---
+    function generatePDF() {
+        // PDF'in icine alinacak asil cerceve
+        const element = document.getElementById('scorecardToPrint');
+
+        // Sadece PDF dosyasinin icinde gorunmesi gereken basligi ac
+        document.getElementById('pdfHeader').style.display = 'block';
+        document.getElementById('scorecardTitle').style.display = 'none';
+
+        // PDF Ayarlari (Yatay mod - Landscape)
+        const opt = {
+            margin:       0.2,
+            filename:     `Archery_Scorecard_{{ score.date }}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' }
+        };
+
+        // Kutuphaneyi cagir ve indir
+        html2pdf().set(opt).from(element).save().then(() => {
+            // Indirme bitince basliklari eski haline dondur
+            document.getElementById('pdfHeader').style.display = 'none';
+            document.getElementById('scorecardTitle').style.display = 'block';
+        });
+    }
 </script>
 {% endblock %}
