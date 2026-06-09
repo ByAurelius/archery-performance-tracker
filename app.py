@@ -1,6 +1,8 @@
 import os
 import json
-from flask import Flask, render_template, request, redirect, url_for, session
+import csv
+from io import StringIO
+from flask import Flask, render_template, request, redirect, url_for, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -15,6 +17,7 @@ app.config['UPLOAD_FOLDER'] = 'static/uploads'
 db = SQLAlchemy(app)
 
 
+# ... (Database modelleri ayni kalacak) ...
 class Archer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -86,6 +89,16 @@ with app.app_context():
     db.create_all()
 
 
+# --- ERROR HANDLERS ---
+@app.errorhandler(404)
+def page_not_found(e): return render_template('error.html', code=404, message="Page Not Found"), 404
+
+
+@app.errorhandler(500)
+def server_error(e): return render_template('error.html', code=500, message="Internal Server Error"), 500
+
+
+# --- ROUTES ---
 @app.route('/')
 def home_page(): return render_template('index.html')
 
@@ -191,7 +204,6 @@ def add_score_page():
             archer_id=session['user_id']
         )
         db.session.add(new_score)
-
         archer = Archer.query.get(session['user_id'])
         archer.current_string_arrows = (archer.current_string_arrows or 0) + arrows_shot_count
         db.session.commit()
@@ -206,6 +218,21 @@ def reset_string_lifespan():
     archer.current_string_arrows = 0
     db.session.commit()
     return redirect(url_for('dashboard_page'))
+
+
+@app.route('/export_csv')
+def export_csv():
+    if 'user_id' not in session: return redirect(url_for('login_page'))
+    si = StringIO()
+    cw = csv.writer(si)
+    cw.writerow(['Date', 'Distance', 'Arrows', 'Total Score', 'Fatigue', 'Focus'])
+    scores = Score.query.filter_by(archer_id=session['user_id']).all()
+    for s in scores:
+        cw.writerow([s.date, s.distance, s.arrows_shot, s.total_score, s.fatigue_level, s.focus_level])
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=training_history.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
 
 
 @app.route('/add_sight_mark', methods=['GET', 'POST'])
@@ -279,26 +306,15 @@ def dashboard_page():
     if 'user_id' in session:
         archer = Archer.query.get(session['user_id'])
         scores = Score.query.filter_by(archer_id=session['user_id']).all()
-        sight_marks = SightMark.query.filter_by(archer_id=session['user_id']).all()
-        plans = TrainingPlan.query.filter_by(athlete_id=session['user_id']).all()
-
-        # --- YENI: GAMIFICATION (OYUNLASTIRMA) HESAPLAMALARI ---
-        total_sessions = len(scores)
-        total_arrows_ever = sum(s.arrows_shot for s in scores)
-
-        perfect_10s = 0
-        for s in scores:
-            if s.arrow_data:
-                try:
-                    arrows_list = json.loads(s.arrow_data)
-                    perfect_10s += sum(1 for a in arrows_list if a.get('score') == 10)
-                except Exception as e:
-                    pass
-
         return render_template('dashboard.html', username=session['username'], archer=archer,
-                               scores=scores, sight_marks=sight_marks, plans=plans,
-                               total_sessions=total_sessions, total_arrows_ever=total_arrows_ever,
-                               perfect_10s=perfect_10s)
+                               scores=scores,
+                               sight_marks=SightMark.query.filter_by(archer_id=session['user_id']).all(),
+                               plans=TrainingPlan.query.filter_by(athlete_id=session['user_id']).all(),
+                               total_sessions=len(scores),
+                               total_arrows_ever=sum(s.arrows_shot for s in scores),
+                               perfect_10s=sum(
+                                   sum(1 for a in json.loads(s.arrow_data) if a.get('score') == 10) for s in scores if
+                                   s.arrow_data))
     return redirect(url_for('login_page'))
 
 

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center text-center mt-5">
+    <div class="col-md-6">
+        <div class="card shadow p-5">
+            <h1 class="display-1 text-danger fw-bold">{{ code }}</h1>
+            <h3 class="mb-4">Oops! Something went wrong.</h3>
+            <p class="text-muted">{{ message }}</p>
+            <div class="mt-4">
+                <a href="/" class="btn btn-primary btn-lg">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
