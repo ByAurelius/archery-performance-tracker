@@ -27,10 +27,7 @@ class Archer(db.Model):
     weight = db.Column(db.Float, nullable=True)
     height = db.Column(db.Float, nullable=True)
     draw_length = db.Column(db.Float, nullable=True)
-
-    # YENI: Kiris Omru Sayaci
     current_string_arrows = db.Column(db.Integer, default=0)
-
     scores = db.relationship('Score', backref='shooter', lazy=True)
     sight_marks = db.relationship('SightMark', backref='shooter', lazy=True)
     training_plans = db.relationship('TrainingPlan', backref='receiver', lazy=True)
@@ -195,16 +192,13 @@ def add_score_page():
         )
         db.session.add(new_score)
 
-        # GUNCELLEME: Ok sayisini sporcunun yay kiris omrune ekle
         archer = Archer.query.get(session['user_id'])
         archer.current_string_arrows = (archer.current_string_arrows or 0) + arrows_shot_count
-
         db.session.commit()
         return redirect(url_for('my_trainings_page'))
     return render_template('add_score.html')
 
 
-# YENI ROUTE: Kiris sayacini sifirlama (Yeni kiris takildiginda)
 @app.route('/reset_string_lifespan')
 def reset_string_lifespan():
     if 'user_id' not in session: return redirect(url_for('login_page'))
@@ -283,12 +277,28 @@ def analytics_page():
 def dashboard_page():
     if session.get('is_coach'): return redirect(url_for('coach_dashboard_page'))
     if 'user_id' in session:
-        # Guncelleme: Archer bilgisini dashboard'a gonderiyoruz (sayac icin)
         archer = Archer.query.get(session['user_id'])
+        scores = Score.query.filter_by(archer_id=session['user_id']).all()
+        sight_marks = SightMark.query.filter_by(archer_id=session['user_id']).all()
+        plans = TrainingPlan.query.filter_by(athlete_id=session['user_id']).all()
+
+        # --- YENI: GAMIFICATION (OYUNLASTIRMA) HESAPLAMALARI ---
+        total_sessions = len(scores)
+        total_arrows_ever = sum(s.arrows_shot for s in scores)
+
+        perfect_10s = 0
+        for s in scores:
+            if s.arrow_data:
+                try:
+                    arrows_list = json.loads(s.arrow_data)
+                    perfect_10s += sum(1 for a in arrows_list if a.get('score') == 10)
+                except Exception as e:
+                    pass
+
         return render_template('dashboard.html', username=session['username'], archer=archer,
-                               scores=Score.query.filter_by(archer_id=session['user_id']).all(),
-                               sight_marks=SightMark.query.filter_by(archer_id=session['user_id']).all(),
-                               plans=TrainingPlan.query.filter_by(athlete_id=session['user_id']).all())
+                               scores=scores, sight_marks=sight_marks, plans=plans,
+                               total_sessions=total_sessions, total_arrows_ever=total_arrows_ever,
+                               perfect_10s=perfect_10s)
     return redirect(url_for('login_page'))
 
 

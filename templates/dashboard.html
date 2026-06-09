@@ -10,6 +10,62 @@
     </div>
 </div>
 
+<div class="card shadow border-0 mb-5 bg-dark text-white" style="border-radius: 20px;">
+    <div class="card-body p-4">
+        <h4 class="card-title text-warning fw-bold mb-4">🏆 Trophy Room & Achievements</h4>
+        <div class="row text-center">
+
+            <div class="col-md-3 col-6 mb-3">
+                <div class="p-3 rounded {% if total_sessions >= 1 %}bg-success bg-opacity-25 border border-success{% else %}bg-secondary bg-opacity-50 opacity-50{% endif %}">
+                    <h1 class="mb-2">🎯</h1>
+                    <h6 class="fw-bold text-light">First Blood</h6>
+                    <small class="text-white-50">Log 1st Training</small>
+                    <div class="mt-2">
+                        {% if total_sessions >= 1 %}<span class="badge bg-success">UNLOCKED</span>{% else %}<span class="badge bg-secondary">LOCKED</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3 col-6 mb-3">
+                <div class="p-3 rounded {% if total_sessions >= 10 %}bg-primary bg-opacity-25 border border-primary{% else %}bg-secondary bg-opacity-50 opacity-50{% endif %}">
+                    <h1 class="mb-2">🔥</h1>
+                    <h6 class="fw-bold text-light">Dedicated</h6>
+                    <small class="text-white-50">Log 10 Sessions</small>
+                    <div class="mt-2">
+                        {% if total_sessions >= 10 %}<span class="badge bg-primary">UNLOCKED</span>
+                        {% else %}<small class="text-warning">{{ total_sessions }} / 10</small>{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3 col-6 mb-3">
+                <div class="p-3 rounded {% if total_arrows_ever >= 100 %}bg-warning bg-opacity-25 border border-warning{% else %}bg-secondary bg-opacity-50 opacity-50{% endif %}">
+                    <h1 class="mb-2">🏹</h1>
+                    <h6 class="fw-bold text-light">Centurion</h6>
+                    <small class="text-white-50">Shoot 100 Arrows</small>
+                    <div class="mt-2">
+                        {% if total_arrows_ever >= 100 %}<span class="badge bg-warning text-dark">UNLOCKED</span>
+                        {% else %}<small class="text-warning">{{ total_arrows_ever }} / 100</small>{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3 col-6 mb-3">
+                <div class="p-3 rounded {% if perfect_10s >= 50 %}bg-danger bg-opacity-25 border border-danger{% else %}bg-secondary bg-opacity-50 opacity-50{% endif %}">
+                    <h1 class="mb-2">🦅</h1>
+                    <h6 class="fw-bold text-light">Sharpshooter</h6>
+                    <small class="text-white-50">Hit 50 Perfect 10s</small>
+                    <div class="mt-2">
+                        {% if perfect_10s >= 50 %}<span class="badge bg-danger">UNLOCKED</span>
+                        {% else %}<small class="text-warning">{{ perfect_10s }} / 50</small>{% endif %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
 {% set max_arrows = 3000 %}
 {% set current_arrows = archer.current_string_arrows or 0 %}
 {% set percentage = (current_arrows / max_arrows * 100) | round(1) %}
