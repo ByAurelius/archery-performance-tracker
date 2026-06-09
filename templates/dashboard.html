@@ -5,8 +5,43 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Welcome, {{ username }}!</h2>
     <div>
-        <a href="/add_sight_mark" class="btn btn-warning me-2">+ Add Sight Mark</a>
-        <a href="/add_score" class="btn btn-success">+ Add New Score</a>
+        <a href="/add_sight_mark" class="btn btn-warning me-2 fw-bold text-dark">+ Add Sight Mark</a>
+        <a href="/add_score" class="btn btn-success fw-bold text-white">+ New Training</a>
+    </div>
+</div>
+
+{% set max_arrows = 3000 %}
+{% set current_arrows = archer.current_string_arrows or 0 %}
+{% set percentage = (current_arrows / max_arrows * 100) | round(1) %}
+{% set progress_color = 'bg-success' %}
+{% if percentage >= 85 %}{% set progress_color = 'bg-danger' %}{% elif percentage >= 60 %}{% set progress_color = 'bg-warning' %}{% endif %}
+
+<div class="card shadow border-secondary mb-5">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title text-secondary mb-0">🏹 Bowstring Lifespan Tracker</h5>
+            <a href="/reset_string_lifespan" class="btn btn-sm btn-outline-danger" onclick="return confirm('Did you install a new bowstring? This will reset the counter to 0.')">Reset (New String Installed)</a>
+        </div>
+
+        <div class="d-flex justify-content-between small text-muted mb-1">
+            <span>{{ current_arrows }} arrows shot</span>
+            <span>Max Safe Limit: ~{{ max_arrows }}</span>
+        </div>
+
+        <div class="progress" style="height: 25px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated {{ progress_color }}"
+                 role="progressbar"
+                 style="width: {% if percentage > 100 %}100{% else %}{{ percentage }}{% endif %}%;"
+                 aria-valuenow="{{ current_arrows }}" aria-valuemin="0" aria-valuemax="{{ max_arrows }}">
+                <span class="fw-bold fs-6">{% if percentage > 100 %}DANGER ({{ percentage }}%){% else %}{{ percentage }}%{% endif %}</span>
+            </div>
+        </div>
+
+        {% if percentage >= 85 %}
+        <div class="alert alert-danger mt-3 py-2 mb-0 border-danger shadow-sm">
+            <strong>⚠️ Warning:</strong> Your bowstring is nearing or has exceeded its safe lifespan. Consider replacing it soon to prevent performance loss or equipment failure!
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -59,14 +94,12 @@
             <div class="card-body">
                 <h4 class="card-title mb-3">Training History</h4>
                 {% if scores %}
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover align-middle">
                     <thead class="table-dark">
                         <tr>
                             <th>Date</th>
                             <th>Distance</th>
-                            <th>Arrows</th>
                             <th>Total Score</th>
-                            <th>Target Image</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -74,19 +107,14 @@
                         <tr>
                             <td>{{ score.date }}</td>
                             <td>{{ score.distance }} m</td>
-                            <td>{{ score.arrows_shot }}</td>
                             <td><strong>{{ score.total_score }}</strong></td>
-                            <td>
-                                {% if score.image_file %}
-                                <a href="{{ url_for('static', filename='uploads/' + score.image_file) }}" target="_blank" class="btn btn-sm btn-outline-info">View</a>
-                                {% else %}
-                                <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+                <div class="text-center mt-3">
+                    <a href="/my_trainings" class="btn btn-outline-primary w-100">View Detailed Archive & Scorecards &rarr;</a>
+                </div>
                 {% else %}
                 <div class="alert alert-warning">No scores recorded yet.</div>
                 {% endif %}
@@ -99,7 +127,7 @@
             <div class="card-body">
                 <h4 class="card-title mb-3">Sight Marks</h4>
                 {% if sight_marks %}
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover align-middle">
                     <thead class="table-secondary">
                         <tr>
                             <th>Distance</th>
@@ -135,7 +163,6 @@
 <script>
     const chartDates = [{% for score in scores %}"{{ score.date }}",{% endfor %}];
     const chartScores = [{% for score in scores %}{{ score.total_score }},{% endfor %}];
-
     const ctx = document.getElementById('scoreChart').getContext('2d');
     new Chart(ctx, {
         type: 'line',
@@ -147,10 +174,8 @@
                 borderColor: 'rgba(25, 135, 84, 1)',
                 backgroundColor: 'rgba(25, 135, 84, 0.2)',
                 borderWidth: 3,
-                tension: 0.3,
-                fill: true,
-                pointBackgroundColor: 'rgba(25, 135, 84, 1)',
-                pointRadius: 5
+                tension: 0.3, fill: true,
+                pointBackgroundColor: 'rgba(25, 135, 84, 1)', pointRadius: 5
             }]
         },
         options: { responsive: true, scales: { y: { beginAtZero: false } } }

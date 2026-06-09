@@ -7,6 +7,27 @@
     <a href="/coach_dashboard" class="btn btn-secondary">&larr; Back to Dashboard</a>
 </div>
 
+{% set max_arrows = 3000 %}
+{% set current_arrows = athlete.current_string_arrows or 0 %}
+{% set percentage = (current_arrows / max_arrows * 100) | round(1) %}
+{% set progress_color = 'bg-success' %}
+{% if percentage >= 85 %}{% set progress_color = 'bg-danger' %}{% elif percentage >= 60 %}{% set progress_color = 'bg-warning' %}{% endif %}
+
+<div class="card shadow border-dark mb-4">
+    <div class="card-body">
+        <h5 class="card-title text-dark mb-2">🏹 Athlete Bowstring Lifespan</h5>
+        <div class="d-flex justify-content-between small text-muted mb-1">
+            <span>{{ current_arrows }} arrows shot</span>
+            <span>Limit: ~{{ max_arrows }}</span>
+        </div>
+        <div class="progress" style="height: 20px;">
+            <div class="progress-bar progress-bar-striped {{ progress_color }}" role="progressbar" style="width: {% if percentage > 100 %}100{% else %}{{ percentage }}{% endif %}%;">
+                <span class="fw-bold">{% if percentage > 100 %}DANGER ({{ percentage }}%){% else %}{{ percentage }}%{% endif %}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card shadow border-info mb-4">
     <div class="card-body">
         <h5 class="card-title text-info mb-3">Athlete Physical Profile</h5>
