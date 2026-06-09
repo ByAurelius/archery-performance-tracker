@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📊 Advanced Data Analytics</h2>
+    <span class="text-muted">Powered by AI & Data Science</span>
+</div>
+
+{% if scores|length > 2 %}
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card shadow border-info h-100">
+            <div class="card-header bg-info text-white text-center">
+                <h6 class="mb-0">Wind Speed Impact on Score</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted text-center">Do strong winds lower your performance? Check the correlation below.</p>
+                <canvas id="windScatterChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card shadow border-warning h-100">
+            <div class="card-header bg-warning text-dark text-center fw-bold">
+                <h6 class="mb-0">Mental Focus vs Physical Fatigue</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted text-center">How your readiness changes over time.</p>
+                <canvas id="readinessLineChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12 mb-5">
+        <div class="card shadow border-success">
+            <div class="card-header bg-success text-white text-center">
+                <h6 class="mb-0">Overall Score Progression</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="scoreProgressionChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Python'dan gelen verileri JavaScript'e aktarma (Veri Temizleme Islemi)
+    const rawData = [
+        {% for s in scores %}
+        {
+            date: "{{ s.date }}",
+            score: {{ s.total_score }},
+            wind: parseFloat("{{ s.wind_speed }}".replace(" km/h", "")) || 0,
+            fatigue: {{ s.fatigue_level or 5 }},
+            focus: {{ s.focus_level or 5 }}
+        },
+        {% endfor %}
+    ];
+
+    // --- 1. RUZGAR VS SKOR (Scatter Plot) ---
+    const windScatterData = rawData.map(d => ({ x: d.wind, y: d.score }));
+    new Chart(document.getElementById('windScatterChart').getContext('2d'), {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Training Sessions',
+                data: windScatterData,
+                backgroundColor: 'rgba(23, 162, 184, 0.7)',
+                pointRadius: 6,
+                pointHoverRadius: 8
+            }]
+        },
+        options: {
+            scales: {
+                x: { title: { display: true, text: 'Wind Speed (km/h)' } },
+                y: { title: { display: true, text: 'Total Score' } }
+            }
+        }
+    });
+
+    // --- 2. ODAKLANMA VS YORGUNLUK (Line Chart) ---
+    const labels = rawData.map(d => d.date);
+    const fatigueData = rawData.map(d => d.fatigue);
+    const focusData = rawData.map(d => d.focus);
+
+    new Chart(document.getElementById('readinessLineChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Fatigue Level',
+                    data: fatigueData,
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    tension: 0.3, fill: true
+                },
+                {
+                    label: 'Focus Level',
+                    data: focusData,
+                    borderColor: 'rgba(25, 135, 84, 1)',
+                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                    tension: 0.3, fill: true
+                }
+            ]
+        },
+        options: { scales: { y: { min: 0, max: 10 } } }
+    });
+
+    // --- 3. SKOR TRENDI (Bar Chart) ---
+    const scoreData = rawData.map(d => d.score);
+    new Chart(document.getElementById('scoreProgressionChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Total Score',
+                data: scoreData,
+                backgroundColor: 'rgba(40, 167, 69, 0.6)',
+                borderColor: 'rgba(40, 167, 69, 1)',
+                borderWidth: 1
+            }]
+        }
+    });
+</script>
+
+{% else %}
+<div class="alert alert-warning shadow-sm mt-4 text-center p-5">
+    <h4 class="alert-heading">Not Enough Data for Analysis!</h4>
+    <p>The AI requires at least <strong>3 training sessions</strong> to generate meaningful correlations and graphs.</p>
+    <a href="/add_score" class="btn btn-warning mt-3 fw-bold">Go Record More Sessions</a>
+</div>
+{% endif %}
+{% endblock %}
