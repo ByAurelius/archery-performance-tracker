@@ -1,9 +1,12 @@
 import os
 import json
 import csv
+import math
 from io import StringIO
+from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, session, make_response
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -15,6 +18,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+# 122 cm WA target face: radius 610 mm, 10 rings of 61 mm each.
+# The canvas draws it with a 200 px radius, so 1 px = 3.05 mm.
+TARGET_RADIUS_MM = 610
+RING_WIDTH_MM = 61
+CANVAS_CENTER_PX = 200
+MM_PER_PX = TARGET_RADIUS_MM / CANVAS_CENTER_PX
 
 
 # ... (Database modelleri ayni kalacak) ...
@@ -31,6 +42,7 @@ class Archer(db.Model):
     height = db.Column(db.Float, nullable=True)
     draw_length = db.Column(db.Float, nullable=True)
     current_string_arrows = db.Column(db.Integer, default=0)
+    is_synthetic = db.Column(db.Boolean, default=False)
     scores = db.relationship('Score', backref='shooter', lazy=True)
     sight_marks = db.relationship('SightMark', backref='shooter', lazy=True)
     training_plans = db.relationship('TrainingPlan', backref='receiver', lazy=True)
@@ -39,7 +51,7 @@ class Archer(db.Model):
 
 class Score(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.String(20), nullable=False)
+    date = db.Column(db.Date, nullable=False, index=True)
     distance = db.Column(db.Integer, nullable=False)
     arrows_shot = db.Column(db.Integer, nullable=False)
     total_score = db.Column(db.Integer, nullable=False)
@@ -51,7 +63,26 @@ class Score(db.Model):
     wind_direction = db.Column(db.String(20), nullable=True)
     fatigue_level = db.Column(db.Integer, nullable=True)
     focus_level = db.Column(db.Integer, nullable=True)
-    archer_id = db.Column(db.Integer, db.ForeignKey('archer.id'), nullable=False)
+    archer_id = db.Column(db.Integer, db.ForeignKey('archer.id'), nullable=False, index=True)
+    arrows = db.relationship('Arrow', backref='training', lazy=True, cascade='all, delete-orphan',
+                             order_by='Arrow.id')
+
+
+class Arrow(db.Model):
+    # One row per arrow. Coordinates are in mm from the target centre (x right, y up).
+    id = db.Column(db.Integer, primary_key=True)
+    end_no = db.Column(db.Integer, nullable=False)
+    arrow_no = db.Column(db.Integer, nullable=False)
+    x_mm = db.Column(db.Float, nullable=False)
+    y_mm = db.Column(db.Float, nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    score_id = db.Column(db.Integer, db.ForeignKey('score.id'), nullable=False, index=True)
+
+
+def ring_score(x_mm, y_mm):
+    radius = (x_mm ** 2 + y_mm ** 2) ** 0.5
+    if radius > TARGET_RADIUS_MM: return 0
+    return max(1, min(10, math.ceil((TARGET_RADIUS_MM - radius) / RING_WIDTH_MM)))
 
 
 class SightMark(db.Model):
@@ -83,10 +114,6 @@ class BowTuning(db.Model):
     draw_weight = db.Column(db.String(50), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     archer_id = db.Column(db.Integer, db.ForeignKey('archer.id'), nullable=False)
-
-
-with app.app_context():
-    db.create_all()
 
 
 # --- ERROR HANDLERS ---
@@ -192,16 +219,26 @@ def add_score_page():
             os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
             form_image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-        arrows_shot_count = int(request.form.get('arrows_shot') or 0)
+        arrows_per_end = int(request.form.get('arrows_per_end') or 6)
+        clicked_arrows = json.loads(request.form.get('arrow_data') or '[]')
+
+        # Canvas pixels -> mm from the target centre; the score is recomputed on the server
+        arrow_rows = []
+        for i, a in enumerate(clicked_arrows):
+            x_mm = (float(a['x']) - CANVAS_CENTER_PX) * MM_PER_PX
+            y_mm = (CANVAS_CENTER_PX - float(a['y'])) * MM_PER_PX
+            arrow_rows.append(Arrow(end_no=i // arrows_per_end + 1, arrow_no=i % arrows_per_end + 1,
+                                    x_mm=round(x_mm, 1), y_mm=round(y_mm, 1), score=ring_score(x_mm, y_mm)))
+        arrows_shot_count = len(arrow_rows)
 
         new_score = Score(
-            date=request.form.get('date'), distance=request.form.get('distance'),
-            arrows_shot=arrows_shot_count, total_score=request.form.get('total_score'),
-            arrow_data=request.form.get('arrow_data'), arrows_per_end=request.form.get('arrows_per_end'),
+            date=date.fromisoformat(request.form.get('date')), distance=request.form.get('distance'),
+            arrows_shot=arrows_shot_count, total_score=sum(a.score for a in arrow_rows),
+            arrow_data=request.form.get('arrow_data'), arrows_per_end=arrows_per_end,
             image_file=filename, weather_temp=request.form.get('weather_temp'),
             wind_speed=request.form.get('wind_speed'), wind_direction=request.form.get('wind_direction'),
             fatigue_level=request.form.get('fatigue_level'), focus_level=request.form.get('focus_level'),
-            archer_id=session['user_id']
+            archer_id=session['user_id'], arrows=arrow_rows
         )
         db.session.add(new_score)
         archer = Archer.query.get(session['user_id'])
