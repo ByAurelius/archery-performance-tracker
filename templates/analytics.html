@@ -72,8 +72,25 @@
 
 <!-- Progress -->
 <div class="card shadow-sm mb-4"><div class="card-body">
-    <h5 class="card-title mb-1">Progress over time</h5>
-    <p class="chart-note mb-3">Average arrow score of each session, with 7- and 30-day moving averages and a least-squares trend line.</p>
+    <h5 class="card-title mb-1">Progress over time{% if report.forecast %} and 30-day forecast{% endif %}</h5>
+    <p class="chart-note mb-3">Average arrow score of each session, with 7- and 30-day moving averages and a least-squares trend line.
+        {% if report.forecast %}The violet line is the LSTM forecast for the next 30 days. The shaded band is where a single session is expected to land
+        8 times out of 10: it combines the model's own uncertainty with this archer's normal day-to-day variation.{% endif %}</p>
+    {% if report.forecast %}
+    {% set f = report.forecast %}
+    <div class="d-flex flex-wrap gap-4 align-items-baseline mb-3 p-3 rounded" style="background: #f3f2fb;">
+        <div>
+            <div class="kpi-label">Forecast: next 30 days</div>
+            <div class="kpi-value">{{ '%.2f'|format(f.month_mean) }}</div>
+        </div>
+        <div>
+            <div class="kpi-label">vs. last 30 sessions</div>
+            <div class="kpi-value fs-5">{{ '▲' if f.change > 0 else '▼' if f.change < 0 else '■' }} {{ '%+.2f'|format(f.change) }}</div>
+        </div>
+        <div class="kpi-sub">80 % range for a single session on day 30: {{ '%.2f'|format(f.lower[-1]) }} – {{ '%.2f'|format(f.upper[-1]) }}<br>
+            Updated {{ f.created_at }} · assumes one session per day</div>
+    </div>
+    {% endif %}
     <div style="height: 320px;"><canvas id="progressChart"></canvas></div>
 </div></div>
 
@@ -192,11 +209,21 @@
 <script>
     const R = {{ report | tojson }};
 
-    // --- Progress ---
+    // --- Progress (history padded with nulls so the forecast can continue the date axis) ---
+    (function () {
+    const F = R.forecast, pad = F ? F.dates.map(() => null) : [], before = R.progress.dates.map(() => null);
+    const forecastSets = F ? [
+        // Starts at the last 30-day average (the model's anchor) so the line joins the history
+        { label: 'Forecast (LSTM)', data: [...before.slice(1), R.progress.ma30.at(-1) ?? R.progress.avg.at(-1), ...F.predicted],
+          borderColor: VIZ.series[6], backgroundColor: VIZ.series[6], pointRadius: 0, order: 0 },
+        { label: '80 % range', data: [...before, ...F.upper], borderColor: 'transparent', backgroundColor: hexToRgba(VIZ.series[6], 0.15),
+          pointRadius: 0, fill: '+1', order: 5 },
+        { label: 'range-low', data: [...before, ...F.lower], borderColor: 'transparent', pointRadius: 0, fill: false, order: 5 },
+    ] : [];
     new Chart(document.getElementById('progressChart'), {
         type: 'line',
         data: {
-            labels: R.progress.dates,
+            labels: [...R.progress.dates, ...(F ? F.dates : [])],
             datasets: [
                 { label: 'Session average', data: R.progress.avg, showLine: false, pointRadius: 2, pointHoverRadius: 4,
                   backgroundColor: VIZ.point, borderColor: VIZ.point, pointBorderWidth: 0, order: 4 },
@@ -206,17 +233,24 @@
                   pointRadius: 0, order: 1 },
                 { label: 'Trend', data: R.progress.trend, borderColor: VIZ.text, backgroundColor: VIZ.text, borderDash: [6, 4],
                   borderWidth: 1.5, pointRadius: 0, order: 3 },
-            ]
+            ].map(d => ({ ...d, data: [...d.data, ...pad] })).concat(forecastSets)
         },
         options: {
             interaction: { mode: 'index', intersect: false },
-            plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw)}` } } },
+            plugins: {
+                legend: { labels: { filter: item => item.text !== 'range-low' } },
+                tooltip: { filter: i => i.raw !== null && !['80 % range', 'range-low'].includes(i.dataset.label),
+                           callbacks: { label: c => c.dataset.label === 'Forecast (LSTM)' && F && c.dataIndex >= R.progress.dates.length
+                               ? `Forecast: ${fmt(c.raw)} (80 %: ${fmt(F.lower[c.dataIndex - R.progress.dates.length])}–${fmt(F.upper[c.dataIndex - R.progress.dates.length])})`
+                               : `${c.dataset.label}: ${fmt(c.raw)}` } }
+            },
             scales: {
                 x: { ticks: { maxTicksLimit: 12, maxRotation: 0 }, grid: { display: false } },
                 y: { title: { display: true, text: 'Average arrow score' } }
             }
         }
     });
+    })();
 
     // --- Heatmap ---
     (function () {

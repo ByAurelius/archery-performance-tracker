@@ -3,7 +3,8 @@ import json
 import csv
 import math
 from io import StringIO
-from datetime import date
+import threading
+from datetime import date, datetime
 from flask import Flask, render_template, request, redirect, url_for, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -83,6 +84,17 @@ def ring_score(x_mm, y_mm):
     radius = (x_mm ** 2 + y_mm ** 2) ** 0.5
     if radius > TARGET_RADIUS_MM: return 0
     return max(1, min(10, math.ceil((TARGET_RADIUS_MM - radius) / RING_WIDTH_MM)))
+
+
+class Forecast(db.Model):
+    # LSTM forecast of the session average for one future day, with an 80 % band
+    id = db.Column(db.Integer, primary_key=True)
+    archer_id = db.Column(db.Integer, db.ForeignKey('archer.id'), nullable=False, index=True)
+    date = db.Column(db.Date, nullable=False)
+    predicted = db.Column(db.Float, nullable=False)
+    lower = db.Column(db.Float, nullable=False)
+    upper = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
 
 
 class SightMark(db.Model):
@@ -246,6 +258,11 @@ def add_score_page():
         archer = Archer.query.get(session['user_id'])
         archer.current_string_arrows = (archer.current_string_arrows or 0) + arrows_shot_count
         db.session.commit()
+        try:
+            refresh_forecast(archer.id)
+        except Exception as e:  # a failed forecast must never lose the saved session
+            app.logger.warning('Forecast refresh failed: %s', e)
+            db.session.rollback()
         return redirect(url_for('my_trainings_page'))
     return render_template('add_score.html')
 
@@ -336,6 +353,53 @@ def view_training_page(score_id):
     return redirect(url_for('home_page'))
 
 
+# --- FORECASTING ---
+# PyTorch is only imported when a forecast is needed, so ordinary pages stay fast.
+_forecast_model = None
+_training = dict(running=False, started=None, finished=None, error=None, log=[])
+
+
+def get_forecast_model():
+    global _forecast_model
+    if _forecast_model is None:
+        import forecasting
+        _forecast_model = forecasting.load_model()
+    return _forecast_model
+
+
+def reset_forecast_model():
+    global _forecast_model
+    _forecast_model = None
+
+
+def refresh_forecast(archer_id):
+    """Recompute one archer's 30-day forecast with the saved model (no retraining)."""
+    import forecasting
+    rows = forecasting.forecast(get_forecast_model(), forecasting.load_features(db.engine, archer_id))
+    # Forget already-loaded forecast objects so the bulk delete cannot clash with the new rows
+    for obj in [o for o in db.session.identity_map.values() if isinstance(o, Forecast)]: db.session.expunge(obj)
+    Forecast.query.filter_by(archer_id=archer_id).delete(synchronize_session=False)
+    if rows:
+        now = datetime.now()
+        db.session.add_all(Forecast(archer_id=archer_id, created_at=now, **r) for r in rows)
+    db.session.commit()
+    return bool(rows)
+
+
+def run_training_in_background():
+    def work():
+        try:
+            import train_forecast
+            train_forecast.run(log=_training['log'].append)
+        except Exception as e:
+            _training['error'] = str(e)
+        finally:
+            _training['running'], _training['finished'] = False, datetime.now().strftime('%Y-%m-%d %H:%M')
+
+    _training.update(running=True, started=datetime.now().strftime('%Y-%m-%d %H:%M'), finished=None, error=None, log=[])
+    threading.Thread(target=work, daemon=True).start()
+
+
 PERIODS = {'all': None, '90': 90, '30': 30}
 
 
@@ -356,6 +420,15 @@ def render_analytics(archer, period, coach_view):
     if report:
         # "Last 30 days vs previous 30" always looks at the full history, whatever the period filter
         report['summary']['change_30'] = analytics.change_last_30(all_sessions)
+        rows = Forecast.query.filter_by(archer_id=archer.id).order_by(Forecast.date).all()
+        if rows:
+            recent = all_sessions['avg'].tail(30).mean()
+            report['forecast'] = dict(
+                dates=[r.date.isoformat() for r in rows], predicted=[r.predicted for r in rows],
+                lower=[r.lower for r in rows], upper=[r.upper for r in rows],
+                month_mean=round(sum(r.predicted for r in rows) / len(rows), 2),
+                change=round(sum(r.predicted for r in rows) / len(rows) - recent, 2) + 0.0,  # + 0.0 turns -0.0 into 0.0
+                created_at=rows[0].created_at.strftime('%Y-%m-%d %H:%M'))
     return render_template('analytics.html', archer=archer, report=report, period=period, coach_view=coach_view)
 
 
@@ -392,6 +465,20 @@ def compare_page():
                              plan_rate=plan_stats['rate'] if plan_stats else None,
                              improvement=analytics.first_last_change(sessions)))
     return render_template('compare.html', athletes=athletes, period=period)
+
+
+@app.route('/coach/model')
+def model_page():
+    if 'user_id' not in session or not session.get('is_coach'): return redirect(url_for('home_page'))
+    import forecasting
+    return render_template('model.html', evaluation=forecasting.load_evaluation(), training=_training)
+
+
+@app.route('/coach/model/retrain', methods=['POST'])
+def retrain_model():
+    if 'user_id' not in session or not session.get('is_coach'): return redirect(url_for('home_page'))
+    if not _training['running']: run_training_in_background()
+    return redirect(url_for('model_page'))
 
 
 @app.route('/dashboard')
