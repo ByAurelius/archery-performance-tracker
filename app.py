@@ -182,10 +182,12 @@ def athlete_stats_page(athlete_id):
     if athlete.is_coach: return redirect(url_for('coach_dashboard_page'))
     return render_template('athlete_stats.html', athlete=athlete,
                            scores=Score.query.filter_by(archer_id=athlete.id).all(),
-                           sight_marks=SightMark.query.filter_by(archer_id=athlete.id).all(),
-                           plans=TrainingPlan.query.filter_by(athlete_id=athlete.id).all(),
+                           sight_marks=SightMark.query.filter_by(archer_id=athlete.id).order_by(
+                               SightMark.date_recorded.desc(), SightMark.id.desc()).all(),
+                           plans=TrainingPlan.query.filter_by(athlete_id=athlete.id).order_by(
+                               TrainingPlan.date_assigned.desc(), TrainingPlan.id.desc()).all(),
                            tuning_logs=BowTuning.query.filter_by(archer_id=athlete.id).order_by(
-                               BowTuning.id.desc()).all())
+                               BowTuning.date_recorded.desc(), BowTuning.id.desc()).all())
 
 
 @app.route('/assign_plan/<int:athlete_id>', methods=['POST'])
@@ -309,7 +311,8 @@ def add_tuning_page():
 @app.route('/tuning_log')
 def tuning_log_page():
     if 'user_id' not in session: return redirect(url_for('login_page'))
-    logs = BowTuning.query.filter_by(archer_id=session['user_id']).order_by(BowTuning.id.desc()).all()
+    logs = BowTuning.query.filter_by(archer_id=session['user_id']).order_by(
+        BowTuning.date_recorded.desc(), BowTuning.id.desc()).all()
     return render_template('tuning_log.html', logs=logs)
 
 
@@ -347,8 +350,10 @@ def dashboard_page():
         scores = Score.query.filter_by(archer_id=session['user_id']).all()
         return render_template('dashboard.html', username=session['username'], archer=archer,
                                scores=scores,
-                               sight_marks=SightMark.query.filter_by(archer_id=session['user_id']).all(),
-                               plans=TrainingPlan.query.filter_by(athlete_id=session['user_id']).all(),
+                               sight_marks=SightMark.query.filter_by(archer_id=session['user_id']).order_by(
+                                   SightMark.date_recorded.desc(), SightMark.id.desc()).all(),
+                               plans=TrainingPlan.query.filter_by(athlete_id=session['user_id']).order_by(
+                                   TrainingPlan.date_assigned.desc(), TrainingPlan.id.desc()).all(),
                                total_sessions=len(scores),
                                total_arrows_ever=sum(s.arrows_shot for s in scores),
                                perfect_10s=Arrow.query.join(Score).filter(Score.archer_id == session['user_id'],
