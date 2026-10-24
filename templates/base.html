@@ -94,6 +94,7 @@
             {% if session.get('user_id') %}
                 {% if session.get('is_coach') %}
                     <li class="nav-item"><a class="nav-link text-info" href="/coach_dashboard">Coach Panel</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="/coach/compare">Compare Athletes</a></li>
                 {% else %}
                     <li class="nav-item"><a class="nav-link" href="/dashboard">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link text-warning" href="/my_trainings">My Trainings</a></li>

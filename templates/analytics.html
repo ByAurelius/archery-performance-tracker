@@ -1,138 +1,392 @@
 {% extends 'base.html' %}
 {% block content %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% include '_chart_theme.html' %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>📊 Advanced Data Analytics</h2>
-    <span class="text-muted">Powered by AI & Data Science</span>
-</div>
-
-{% if scores|length > 2 %}
-<div class="row">
-    <div class="col-md-6 mb-4">
-        <div class="card shadow border-info h-100">
-            <div class="card-header bg-info text-white text-center">
-                <h6 class="mb-0">Wind Speed Impact on Score</h6>
-            </div>
-            <div class="card-body">
-                <p class="small text-muted text-center">Do strong winds lower your performance? Check the correlation below.</p>
-                <canvas id="windScatterChart" height="250"></canvas>
-            </div>
-        </div>
+<div class="viz-root mb-5">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h2 class="mb-0">📊 Performance Analytics</h2>
+        <span class="text-muted">{{ archer.first_name or archer.username }}{% if archer.last_name %} {{ archer.last_name }}{% endif %}</span>
     </div>
-
-    <div class="col-md-6 mb-4">
-        <div class="card shadow border-warning h-100">
-            <div class="card-header bg-warning text-dark text-center fw-bold">
-                <h6 class="mb-0">Mental Focus vs Physical Fatigue</h6>
-            </div>
-            <div class="card-body">
-                <p class="small text-muted text-center">How your readiness changes over time.</p>
-                <canvas id="readinessLineChart" height="250"></canvas>
-            </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        {% set base = url_for('athlete_analytics_page', athlete_id=archer.id) if coach_view else url_for('analytics_page') %}
+        <div class="btn-group" role="group" aria-label="Period">
+            {% for key, label in [('all', 'All time'), ('90', 'Last 90 days'), ('30', 'Last 30 days')] %}
+            <a href="{{ base }}?period={{ key }}" class="btn btn-sm {% if period == key %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ label }}</a>
+            {% endfor %}
         </div>
+        {% if coach_view %}
+        <a href="/athlete/{{ archer.id }}" class="btn btn-sm btn-secondary">&larr; Athlete page</a>
+        {% endif %}
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-12 mb-5">
-        <div class="card shadow border-success">
-            <div class="card-header bg-success text-white text-center">
-                <h6 class="mb-0">Overall Score Progression</h6>
-            </div>
-            <div class="card-body">
-                <canvas id="scoreProgressionChart" height="100"></canvas>
-            </div>
+{% if report %}
+{% set s = report.summary %}
+<!-- Headline metrics -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="kpi-card">
+        <div class="kpi-label">Average arrow score</div>
+        <div class="kpi-value">{{ '%.2f'|format(s.avg_arrow) }}</div>
+        <div class="kpi-sub">{{ s.sessions }} sessions · {{ '{:,}'.format(s.arrows) }} arrows</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="kpi-card">
+        <div class="kpi-label">Last 30 days vs previous 30</div>
+        <div class="kpi-value">{% if s.change_30 is not none %}{{ '▲' if s.change_30 >= 0 else '▼' }} {{ '%+.2f'|format(s.change_30) }}{% else %}–{% endif %}</div>
+        <div class="kpi-sub">points per arrow</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="kpi-card">
+        <div class="kpi-label">Trend</div>
+        <div class="kpi-value">{% if s.trend_per_30 is not none %}{{ '%+.2f'|format(s.trend_per_30) }}{% else %}–{% endif %}</div>
+        <div class="kpi-sub">points per arrow per 30 days{% if s.trend_r2 is not none %} · R² {{ '%.2f'|format(s.trend_r2) }}{% endif %}</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="kpi-card">
+        <div class="kpi-label">Consistency (SD)</div>
+        <div class="kpi-value">{{ '%.2f'|format(s.consistency) if s.consistency is not none else '–' }}</div>
+        <div class="kpi-sub">day-to-day spread of the session average · lower is steadier</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="kpi-card">
+        <div class="kpi-label">10s / misses</div>
+        <div class="kpi-value">{{ s.pct_10 }}% <span class="fs-6 text-muted">/ {{ s.pct_miss }}%</span></div>
+        <div class="kpi-sub">share of all arrows</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="kpi-card">
+        <div class="kpi-label">Group size (R50)</div>
+        <div class="kpi-value">{{ '%.1f'|format(s.r50 / 10) }} cm</div>
+        <div class="kpi-sub">half of the arrows land within this radius of the group centre</div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="kpi-card">
+        <div class="kpi-label">Mean point of impact</div>
+        <div class="kpi-value">{{ '%.1f'|format(s.mpi_dist / 10) }} cm</div>
+        <div class="kpi-sub">
+            {{ '%.1f'|format((s.mpi_x|abs) / 10) }} cm {{ 'right' if s.mpi_x >= 0 else 'left' }},
+            {{ '%.1f'|format((s.mpi_y|abs) / 10) }} cm {{ 'high' if s.mpi_y >= 0 else 'low' }} of centre
         </div>
-    </div>
+    </div></div>
+    <div class="col-6 col-lg-3"><div class="kpi-card">
+        <div class="kpi-label">Best session</div>
+        <div class="kpi-value">{{ s.best_total }}</div>
+        <div class="kpi-sub">{{ s.best_date }}</div>
+    </div></div>
 </div>
+
+<!-- Progress -->
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <h5 class="card-title mb-1">Progress over time</h5>
+    <p class="chart-note mb-3">Average arrow score of each session, with 7- and 30-day moving averages and a least-squares trend line.</p>
+    <div style="height: 320px;"><canvas id="progressChart"></canvas></div>
+</div></div>
+
+<div class="row g-4 mb-4">
+    <!-- Heatmap -->
+    <div class="col-lg-5"><div class="card shadow-sm h-100"><div class="card-body">
+        <h5 class="card-title mb-1">Impact heatmap</h5>
+        <p class="chart-note mb-3">Where the arrows land. Darker = more arrows. The orange cross is the mean point of impact; the dashed circle contains half of the arrows (R50).</p>
+        <div class="text-center position-relative">
+            <canvas id="heatmapCanvas" width="400" height="400" style="max-width: 100%;"></canvas>
+            <div id="heatmapTip" class="small text-muted" style="min-height: 1.2em;"></div>
+        </div>
+    </div></div></div>
+    <!-- Accuracy vs precision -->
+    <div class="col-lg-7"><div class="card shadow-sm h-100"><div class="card-body">
+        <h5 class="card-title mb-1">Accuracy vs. precision by month</h5>
+        <p class="chart-note mb-3"><strong>Accuracy</strong>: how far the group centre is from the middle of the target (a sight or aiming issue).
+            <strong>Precision</strong>: how tight the group is, R50 (a technique and consistency issue). Lower is better for both.</p>
+        <div style="height: 340px;"><canvas id="accPrecChart"></canvas></div>
+    </div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Distribution -->
+    <div class="col-lg-6"><div class="card shadow-sm h-100"><div class="card-body">
+        <h5 class="card-title mb-1">Score distribution</h5>
+        <p class="chart-note mb-3">Share of arrows in each ring{% if report.distribution.first %}, first 30 days of the period vs. last 30 days{% endif %}.</p>
+        <div style="height: 280px;"><canvas id="distChart"></canvas></div>
+    </div></div></div>
+    <!-- Box plot -->
+    <div class="col-lg-6"><div class="card shadow-sm h-100"><div class="card-body">
+        <h5 class="card-title mb-1">Monthly box plot</h5>
+        <p class="chart-note mb-3">Spread of the session averages in each month: box = middle 50 %, line = median, whiskers = 1.5 × IQR, dots = outlier days.</p>
+        <div style="height: 280px;"><canvas id="boxChart"></canvas></div>
+    </div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- In-session fatigue -->
+    <div class="col-lg-7"><div class="card shadow-sm h-100"><div class="card-body">
+        <h5 class="card-title mb-1">In-session fatigue</h5>
+        <p class="chart-note mb-3">
+            Average arrow score per end.
+            First half of the session: <strong>{{ report.fatigue.first_half }}</strong>,
+            second half: <strong>{{ report.fatigue.second_half }}</strong>
+            (drop {{ '%.2f'|format(report.fatigue.drop) if report.fatigue.drop is not none else '–' }} points per arrow).
+        </p>
+        <div style="height: 260px;"><canvas id="fatigueChart"></canvas></div>
+    </div></div></div>
+    <!-- Plans -->
+    <div class="col-lg-5"><div class="card shadow-sm h-100"><div class="card-body">
+        <h5 class="card-title mb-1">Coach training plans</h5>
+        {% set pl = report.plans %}
+        {% if pl and pl.total %}
+        <p class="chart-note mb-3">Completion of assigned plans and the change in session average from the 14 days before a plan to the 14 days after it.</p>
+        <div class="kpi-value mb-1">{{ pl.rate }}%</div>
+        <div class="kpi-sub mb-2">{{ pl.completed }} of {{ pl.total }} plans completed</div>
+        <div class="progress mb-4" style="height: 8px;" role="progressbar" aria-label="Plan completion" aria-valuenow="{{ pl.rate }}" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width: {{ pl.rate }}%; background: var(--series-1);"></div>
+        </div>
+        <table class="table table-sm mb-2">
+            <thead><tr><th></th><th class="text-end">Avg. change after plan</th><th class="text-end">n</th></tr></thead>
+            <tbody>
+                <tr><td>Completed plans</td><td class="text-end">{{ '%+.3f'|format(pl.change_completed) if pl.change_completed is not none else '–' }}</td><td class="text-end">{{ pl.n_completed }}</td></tr>
+                <tr><td>Open plans</td><td class="text-end">{{ '%+.3f'|format(pl.change_open) if pl.change_open is not none else '–' }}</td><td class="text-end">{{ pl.n_open }}</td></tr>
+            </tbody>
+        </table>
+        <p class="chart-note mb-0">An association only: it does not show that a plan caused the change.</p>
+        {% else %}
+        <p class="text-muted">No training plans in this period.</p>
+        {% endif %}
+    </div></div></div>
+</div>
+
+<!-- Correlations -->
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <h5 class="card-title mb-1">What affects the score?</h5>
+    <p class="chart-note mb-3">
+        Pearson correlation of each factor with the session average. Because skill improves during the year while weather follows the seasons,
+        the <strong>detrended r</strong> (both series minus their 31-day moving average) shows the day-to-day effect with the long-term trends removed.
+    </p>
+    <div class="row g-3">
+        {% for f in report.correlations.factors %}
+        <div class="col-md-6 col-xl-3">
+            <div class="fw-semibold small">{{ f.label }}</div>
+            <div class="small text-muted mb-1">
+                r = {{ '%.2f'|format(f.r) if f.r is not none else '–' }} ·
+                detrended r = {{ '%.2f'|format(f.r_detrended) if f.r_detrended is not none else '–' }}
+                <span class="js-p" data-p="{{ f.p_detrended if f.p_detrended is not none else '' }}"></span>
+            </div>
+            <div style="height: 200px;"><canvas id="scatter-{{ f.key }}"></canvas></div>
+        </div>
+        {% endfor %}
+    </div>
+    <h6 class="mt-4 mb-2">Correlation matrix (raw r)</h6>
+    <div class="table-responsive">
+        <table class="table table-sm table-bordered text-center align-middle mb-0" id="corrMatrix" style="max-width: 720px;">
+            <thead><tr><th></th>{% for l in report.correlations.labels %}<th class="small">{{ l }}</th>{% endfor %}</tr></thead>
+            <tbody>
+                {% for row in report.correlations.matrix %}
+                <tr><th class="small text-start">{{ report.correlations.labels[loop.index0] }}</th>
+                    {% for v in row %}<td class="small js-corr" data-r="{{ v if v is not none else '' }}">{{ '%.2f'|format(v) if v is not none else '–' }}</td>{% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div></div>
+
+<p class="chart-note">
+    <strong>Method notes.</strong> Arrow positions are stored in mm from the target centre on a 122 cm face.
+    Mean point of impact = average arrow position; R50 = median distance of the arrows from that point.
+    Trend = least-squares slope of the session averages over time. Box plots use Tukey's 1.5 × IQR rule.
+</p>
 
 <script>
-    // Python'dan gelen verileri JavaScript'e aktarma (Veri Temizleme Islemi)
-    const rawData = [
-        {% for s in scores %}
-        {
-            date: "{{ s.date }}",
-            score: {{ s.total_score }},
-            wind: parseFloat("{{ s.wind_speed }}".replace(" km/h", "")) || 0,
-            fatigue: {{ s.fatigue_level or 5 }},
-            focus: {{ s.focus_level or 5 }}
-        },
-        {% endfor %}
-    ];
+    const R = {{ report | tojson }};
 
-    // --- 1. RUZGAR VS SKOR (Scatter Plot) ---
-    const windScatterData = rawData.map(d => ({ x: d.wind, y: d.score }));
-    new Chart(document.getElementById('windScatterChart').getContext('2d'), {
-        type: 'scatter',
+    // --- Progress ---
+    new Chart(document.getElementById('progressChart'), {
+        type: 'line',
         data: {
-            datasets: [{
-                label: 'Training Sessions',
-                data: windScatterData,
-                backgroundColor: 'rgba(23, 162, 184, 0.7)',
-                pointRadius: 6,
-                pointHoverRadius: 8
-            }]
+            labels: R.progress.dates,
+            datasets: [
+                { label: 'Session average', data: R.progress.avg, showLine: false, pointRadius: 2, pointHoverRadius: 4,
+                  backgroundColor: VIZ.point, borderColor: VIZ.point, pointBorderWidth: 0, order: 4 },
+                { label: '7-day average', data: R.progress.ma7, borderColor: VIZ.series[0], backgroundColor: VIZ.series[0],
+                  borderWidth: 1.5, pointRadius: 0, order: 2 },
+                { label: '30-day average', data: R.progress.ma30, borderColor: VIZ.series[1], backgroundColor: VIZ.series[1],
+                  pointRadius: 0, order: 1 },
+                { label: 'Trend', data: R.progress.trend, borderColor: VIZ.text, backgroundColor: VIZ.text, borderDash: [6, 4],
+                  borderWidth: 1.5, pointRadius: 0, order: 3 },
+            ]
         },
         options: {
+            interaction: { mode: 'index', intersect: false },
+            plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw)}` } } },
             scales: {
-                x: { title: { display: true, text: 'Wind Speed (km/h)' } },
-                y: { title: { display: true, text: 'Total Score' } }
+                x: { ticks: { maxTicksLimit: 12, maxRotation: 0 }, grid: { display: false } },
+                y: { title: { display: true, text: 'Average arrow score' } }
             }
         }
     });
 
-    // --- 2. ODAKLANMA VS YORGUNLUK (Line Chart) ---
-    const labels = rawData.map(d => d.date);
-    const fatigueData = rawData.map(d => d.fatigue);
-    const focusData = rawData.map(d => d.focus);
+    // --- Heatmap ---
+    (function () {
+        const canvas = document.getElementById('heatmapCanvas'), ctx = canvas.getContext('2d');
+        const H = R.heatmap, size = 400, c = size / 2, mmToPx = c / 610, cell = size / H.bins;
+        // Light target outline so the heat colour stays readable
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size);
+        for (let i = 0; i < 10; i++) {
+            ctx.beginPath(); ctx.arc(c, c, c - i * 20, 0, 2 * Math.PI);
+            ctx.strokeStyle = i === 8 ? '#9a9993' : '#d4d3cf'; ctx.lineWidth = 1; ctx.stroke();
+        }
+        // Sequential blue: transparent (no arrows) -> dark blue (most arrows)
+        H.cells.forEach((row, r) => row.forEach((v, col) => {
+            if (v <= 0) return;
+            ctx.fillStyle = `rgba(16, 66, 129, ${(0.08 + 0.85 * Math.pow(v, 0.6)).toFixed(3)})`;
+            ctx.fillRect(col * cell, r * cell, cell, cell);
+        }));
+        // Ring labels
+        ctx.fillStyle = VIZ.muted; ctx.font = '10px Poppins, sans-serif';
+        [10, 8, 6, 4, 2].forEach(ring => ctx.fillText(ring, c + (11 - ring) * 20 - 14, c - 3));
+        // MPI and R50
+        const mx = c + H.mpi_x * mmToPx, my = c - H.mpi_y * mmToPx;
+        ctx.strokeStyle = VIZ.series[1]; ctx.lineWidth = 2;
+        ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.arc(mx, my, H.r50 * mmToPx, 0, 2 * Math.PI); ctx.stroke();
+        ctx.setLineDash([]); ctx.beginPath();
+        ctx.moveTo(mx - 8, my); ctx.lineTo(mx + 8, my); ctx.moveTo(mx, my - 8); ctx.lineTo(mx, my + 8); ctx.stroke();
 
-    new Chart(document.getElementById('readinessLineChart').getContext('2d'), {
+        const tip = document.getElementById('heatmapTip');
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect(), scale = size / rect.width;
+            const px = (e.clientX - rect.left) * scale, py = (e.clientY - rect.top) * scale;
+            const v = (H.cells[Math.floor(py / cell)] || [])[Math.floor(px / cell)] || 0;
+            const x = (px - c) / mmToPx / 10, y = (c - py) / mmToPx / 10;
+            tip.textContent = `${Math.abs(x).toFixed(0)} cm ${x >= 0 ? 'right' : 'left'}, ${Math.abs(y).toFixed(0)} cm ${y >= 0 ? 'high' : 'low'} · density ${(v * 100).toFixed(0)} % of peak`;
+        });
+        canvas.addEventListener('mouseleave', () => tip.textContent = '');
+    })();
+
+    // --- Accuracy vs precision ---
+    new Chart(document.getElementById('accPrecChart'), {
         type: 'line',
         data: {
-            labels: labels,
+            labels: R.accuracy_precision.map(m => m.month),
             datasets: [
-                {
-                    label: 'Fatigue Level',
-                    data: fatigueData,
-                    borderColor: 'rgba(220, 53, 69, 1)',
-                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                    tension: 0.3, fill: true
-                },
-                {
-                    label: 'Focus Level',
-                    data: focusData,
-                    borderColor: 'rgba(25, 135, 84, 1)',
-                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
-                    tension: 0.3, fill: true
-                }
+                { label: 'Accuracy: centre offset (cm)', data: R.accuracy_precision.map(m => m.mpi_cm), borderColor: VIZ.series[0],
+                  backgroundColor: VIZ.series[0], pointRadius: 4 },
+                { label: 'Precision: group size R50 (cm)', data: R.accuracy_precision.map(m => m.r50_cm), borderColor: VIZ.series[1],
+                  backgroundColor: VIZ.series[1], pointRadius: 4 },
             ]
         },
-        options: { scales: { y: { min: 0, max: 10 } } }
+        options: {
+            interaction: { mode: 'index', intersect: false },
+            plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw, 1)}` } } },
+            scales: { x: { grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: 'cm' } } }
+        }
     });
 
-    // --- 3. SKOR TRENDI (Bar Chart) ---
-    const scoreData = rawData.map(d => d.score);
-    new Chart(document.getElementById('scoreProgressionChart').getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Total Score',
-                data: scoreData,
-                backgroundColor: 'rgba(40, 167, 69, 0.6)',
-                borderColor: 'rgba(40, 167, 69, 1)',
-                borderWidth: 1
-            }]
+    // --- Distribution ---
+    (function () {
+        const D = R.distribution;
+        const datasets = D.first
+            ? [{ label: 'First 30 days', data: D.first, backgroundColor: VIZ.series[0] },
+               { label: 'Last 30 days', data: D.last, backgroundColor: VIZ.series[1] }]
+            : [{ label: 'All arrows', data: D.all, backgroundColor: VIZ.series[0] }];
+        new Chart(document.getElementById('distChart'), {
+            type: 'bar',
+            data: { labels: D.labels, datasets: datasets.map(d => ({ ...d, borderColor: '#ffffff', borderWidth: 1 })) },
+            options: {
+                plugins: { legend: { display: datasets.length > 1 },
+                           tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw, 1, ' %')}` } } },
+                scales: { x: { grid: { display: false }, title: { display: true, text: 'Ring (M = miss)' } },
+                          y: { beginAtZero: true, title: { display: true, text: '% of arrows' } } }
+            }
+        });
+    })();
+
+    // --- Box plot (floating bars: whisker range, IQR box, median tick, outliers) ---
+    (function () {
+        const B = R.boxplot, labels = B.map(b => b.month);
+        new Chart(document.getElementById('boxChart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Whiskers', data: B.map(b => [b.whisker_low, b.whisker_high]), backgroundColor: VIZ.text,
+                      barPercentage: 0.04, categoryPercentage: 1, grouped: false, borderRadius: 0, order: 3 },
+                    { label: 'Middle 50 %', data: B.map(b => [b.q1, b.q3]), backgroundColor: hexToRgba(VIZ.series[0], 0.55),
+                      borderColor: VIZ.series[0], borderWidth: 1.5, borderSkipped: false, barPercentage: 0.55, grouped: false, order: 2 },
+                    { type: 'line', label: 'Median', data: B.map(b => b.median), showLine: false, pointStyle: 'line',
+                      pointRadius: 11, pointHoverRadius: 11, borderColor: VIZ.text, backgroundColor: VIZ.text, borderWidth: 2.5, order: 1 },
+                    { type: 'line', label: 'Outlier days', showLine: false, pointRadius: 3, backgroundColor: VIZ.series[1],
+                      borderColor: VIZ.series[1], pointBorderWidth: 0,
+                      data: B.flatMap(b => b.outliers.map(o => ({ x: b.month, y: o }))), order: 0 },
+                ]
+            },
+            options: {
+                plugins: {
+                    legend: { labels: { filter: item => item.text !== 'Whiskers' } },
+                    tooltip: { callbacks: { label: c => {
+                        const b = B[c.dataIndex];
+                        if (c.dataset.label === 'Outlier days') return `Outlier: ${fmt(c.raw.y)}`;
+                        return `median ${fmt(b.median)} · Q1 ${fmt(b.q1)} · Q3 ${fmt(b.q3)} · range ${fmt(b.whisker_low)}–${fmt(b.whisker_high)} · ${b.n} days`;
+                    } } }
+                },
+                scales: { x: { grid: { display: false } },
+                          y: { min: Math.floor(Math.min(...B.flatMap(b => [b.whisker_low, ...b.outliers])) * 2) / 2,
+                               max: Math.ceil(Math.max(...B.flatMap(b => [b.whisker_high, ...b.outliers])) * 2) / 2,
+                               title: { display: true, text: 'Session average' } } }
+            }
+        });
+    })();
+
+    // --- In-session fatigue ---
+    new Chart(document.getElementById('fatigueChart'), {
+        type: 'line',
+        data: { labels: R.fatigue.ends.map(e => `End ${e}`),
+                datasets: [{ label: 'Average arrow score', data: R.fatigue.end_avg, borderColor: VIZ.series[0],
+                             backgroundColor: VIZ.series[0], pointRadius: 4 }] },
+        options: {
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `Average: ${fmt(c.raw)}` } } },
+            scales: { x: { grid: { display: false } }, y: { title: { display: true, text: 'Average arrow score' } } }
         }
+    });
+
+    // --- Correlation scatters (small multiples, one series each) ---
+    R.correlations.factors.forEach(f => {
+        const pts = f.points.map(([x, y]) => ({ x, y }));
+        const datasets = [{ label: f.label, data: pts, pointRadius: 2.5, pointHoverRadius: 5,
+                            backgroundColor: hexToRgba(VIZ.series[0], 0.35), pointBorderWidth: 0 }];
+        if (pts.length > 2) {
+            // Least-squares line for visual reference
+            const n = pts.length, mx = pts.reduce((a, p) => a + p.x, 0) / n, my = pts.reduce((a, p) => a + p.y, 0) / n;
+            const sxx = pts.reduce((a, p) => a + (p.x - mx) ** 2, 0), sxy = pts.reduce((a, p) => a + (p.x - mx) * (p.y - my), 0);
+            if (sxx > 0) {
+                const b = sxy / sxx, xs = pts.map(p => p.x), x0 = Math.min(...xs), x1 = Math.max(...xs);
+                datasets.push({ type: 'line', label: 'Fit', data: [{ x: x0, y: my + b * (x0 - mx) }, { x: x1, y: my + b * (x1 - mx) }],
+                                borderColor: VIZ.series[1], pointRadius: 0 });
+            }
+        }
+        new Chart(document.getElementById(`scatter-${f.key}`), {
+            type: 'scatter', data: { datasets },
+            options: {
+                plugins: { legend: { display: false },
+                           tooltip: { filter: i => i.dataset.label !== 'Fit',
+                                      callbacks: { label: c => `${f.label}: ${fmt(c.raw.x, 1)} · avg ${fmt(c.raw.y)}` } } },
+                scales: { x: { title: { display: true, text: f.label } }, y: { title: { display: true, text: 'Session avg' } } }
+            }
+        });
+    });
+    document.querySelectorAll('.js-p').forEach(el => {
+        if (el.dataset.p !== '') el.textContent = `(${fmtP(parseFloat(el.dataset.p))})`;
+    });
+
+    // Correlation matrix cells: diverging red (negative) - grey (0) - blue (positive)
+    document.querySelectorAll('.js-corr').forEach(td => {
+        if (td.dataset.r === '') return;
+        const r = parseFloat(td.dataset.r), a = Math.min(Math.abs(r), 1);
+        const pole = r >= 0 ? [42, 120, 214] : [227, 73, 72], mid = [240, 239, 236];
+        const mix = mid.map((m, i) => Math.round(m + (pole[i] - m) * a));
+        td.style.background = `rgb(${mix.join(',')})`;
+        td.style.color = a > 0.6 ? '#ffffff' : '#0b0b0b';
     });
 </script>
 
 {% else %}
 <div class="alert alert-warning shadow-sm mt-4 text-center p-5">
-    <h4 class="alert-heading">Not Enough Data for Analysis!</h4>
-    <p>The AI requires at least <strong>3 training sessions</strong> to generate meaningful correlations and graphs.</p>
-    <a href="/add_score" class="btn btn-warning mt-3 fw-bold">Go Record More Sessions</a>
+    <h4 class="alert-heading">Not enough data for analysis</h4>
+    <p>At least <strong>3 training sessions</strong> in the selected period are needed.</p>
+    {% if not coach_view %}<a href="/add_score" class="btn btn-warning mt-3 fw-bold">Record a session</a>{% endif %}
 </div>
 {% endif %}
+</div>
 {% endblock %}

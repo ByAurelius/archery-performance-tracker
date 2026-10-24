@@ -7,6 +7,7 @@ from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+import analytics
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -335,11 +336,62 @@ def view_training_page(score_id):
     return redirect(url_for('home_page'))
 
 
+PERIODS = {'all': None, '90': 90, '30': 30}
+
+
+def load_period_data(archer_id, period):
+    all_sessions = analytics.load_sessions(db.engine, archer_id)
+    arrows = analytics.load_arrows(db.engine, archer_id)
+    plans = analytics.load_plans(db.engine, archer_id)
+    sessions, arrows = analytics.filter_period(all_sessions, arrows, PERIODS[period])
+    if PERIODS[period] and not sessions.empty:
+        plans = plans[plans['date_assigned'] >= sessions['date'].min()]
+    return sessions, arrows, plans, all_sessions
+
+
+def render_analytics(archer, period, coach_view):
+    if period not in PERIODS: period = 'all'
+    sessions, arrows, plans, all_sessions = load_period_data(archer.id, period)
+    report = analytics.full_report(sessions, arrows, plans) if len(sessions) >= 3 and len(arrows) else None
+    if report:
+        # "Last 30 days vs previous 30" always looks at the full history, whatever the period filter
+        report['summary']['change_30'] = analytics.change_last_30(all_sessions)
+    return render_template('analytics.html', archer=archer, report=report, period=period, coach_view=coach_view)
+
+
 @app.route('/analytics')
 def analytics_page():
     if 'user_id' not in session: return redirect(url_for('login_page'))
-    scores = Score.query.filter_by(archer_id=session['user_id']).order_by(Score.date.asc()).all()
-    return render_template('analytics.html', scores=scores)
+    if session.get('is_coach'): return redirect(url_for('compare_page'))
+    return render_analytics(db.session.get(Archer, session['user_id']), request.args.get('period', 'all'), False)
+
+
+@app.route('/analytics/<int:athlete_id>')
+def athlete_analytics_page(athlete_id):
+    if 'user_id' not in session or not session.get('is_coach'): return redirect(url_for('home_page'))
+    athlete = Archer.query.get_or_404(athlete_id)
+    if athlete.is_coach: return redirect(url_for('coach_dashboard_page'))
+    return render_analytics(athlete, request.args.get('period', 'all'), True)
+
+
+@app.route('/coach/compare')
+def compare_page():
+    if 'user_id' not in session or not session.get('is_coach'): return redirect(url_for('home_page'))
+    period = request.args.get('period', 'all')
+    if period not in PERIODS: period = 'all'
+    athletes = []
+    for athlete in Archer.query.filter_by(is_coach=False).order_by(Archer.id).all():
+        sessions, arrows, plans, _ = load_period_data(athlete.id, period)
+        if len(sessions) < 3 or arrows.empty: continue
+        plan_stats = analytics.plan_effect(plans, sessions)
+        athletes.append(dict(id=athlete.id, name=athlete.first_name or athlete.username,
+                             summary=analytics.summary(sessions, arrows),
+                             ma30=analytics.progress(sessions)['ma30'],
+                             dates=[d.date().isoformat() for d in sessions['date']],
+                             fatigue_drop=analytics.in_session_fatigue(arrows)['drop'],
+                             plan_rate=plan_stats['rate'] if plan_stats else None,
+                             improvement=analytics.first_last_change(sessions)))
+    return render_template('compare.html', athletes=athletes, period=period)
 
 
 @app.route('/dashboard')

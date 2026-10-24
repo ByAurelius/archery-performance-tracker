@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block content %}
+{% include '_chart_theme.html' %}
+
+<div class="viz-root mb-5">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <h2 class="mb-0">📈 Compare Athletes</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <div class="btn-group" role="group" aria-label="Period">
+            {% for key, label in [('all', 'All time'), ('90', 'Last 90 days'), ('30', 'Last 30 days')] %}
+            <a href="{{ url_for('compare_page') }}?period={{ key }}" class="btn btn-sm {% if period == key %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+        <a href="/coach_dashboard" class="btn btn-sm btn-secondary">&larr; Coach Panel</a>
+    </div>
+</div>
+
+{% if athletes %}
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <h5 class="card-title mb-1">30-day moving average</h5>
+    <p class="chart-note mb-3">Average arrow score, smoothed over 30 sessions.</p>
+    <div style="height: 360px;"><canvas id="compareChart"></canvas></div>
+</div></div>
+
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <h5 class="card-title mb-1">Metrics side by side</h5>
+    <p class="chart-note mb-3">Click a column header to sort. Improvement = last 30 days minus first 30 days of the period.</p>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="metricsTable">
+            <thead class="table-light">
+                <tr>
+                    <th data-type="text">Athlete</th>
+                    <th class="text-end" data-type="num">Avg arrow</th>
+                    <th class="text-end" data-type="num">Improvement</th>
+                    <th class="text-end" data-type="num">Trend / 30 d</th>
+                    <th class="text-end" data-type="num">Consistency (SD)</th>
+                    <th class="text-end" data-type="num">R50 (cm)</th>
+                    <th class="text-end" data-type="num">Centre offset (cm)</th>
+                    <th class="text-end" data-type="num">10s %</th>
+                    <th class="text-end" data-type="num">Fatigue drop</th>
+                    <th class="text-end" data-type="num">Plans done %</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in athletes %}
+                {% set s = a.summary %}
+                <tr>
+                    <td data-v="{{ a.name }}"><span class="d-inline-block rounded-circle me-2" style="width:10px;height:10px;background:{{ ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#6250d6','#e34948'][loop.index0 % 8] }};"></span><strong>{{ a.name }}</strong></td>
+                    <td class="text-end" data-v="{{ s.avg_arrow }}">{{ '%.2f'|format(s.avg_arrow) }}</td>
+                    <td class="text-end" data-v="{{ a.improvement if a.improvement is not none else '' }}">{{ '%+.2f'|format(a.improvement) if a.improvement is not none else '–' }}</td>
+                    <td class="text-end" data-v="{{ s.trend_per_30 if s.trend_per_30 is not none else '' }}">{{ '%+.3f'|format(s.trend_per_30) if s.trend_per_30 is not none else '–' }}</td>
+                    <td class="text-end" data-v="{{ s.consistency if s.consistency is not none else '' }}">{{ '%.2f'|format(s.consistency) if s.consistency is not none else '–' }}</td>
+                    <td class="text-end" data-v="{{ s.r50 }}">{{ '%.1f'|format(s.r50 / 10) }}</td>
+                    <td class="text-end" data-v="{{ s.mpi_dist }}">{{ '%.1f'|format(s.mpi_dist / 10) }}</td>
+                    <td class="text-end" data-v="{{ s.pct_10 }}">{{ s.pct_10 }}</td>
+                    <td class="text-end" data-v="{{ a.fatigue_drop if a.fatigue_drop is not none else '' }}">{{ '%.2f'|format(a.fatigue_drop) if a.fatigue_drop is not none else '–' }}</td>
+                    <td class="text-end" data-v="{{ a.plan_rate if a.plan_rate is not none else '' }}">{{ a.plan_rate if a.plan_rate is not none else '–' }}</td>
+                    <td class="text-end"><a href="{{ url_for('athlete_analytics_page', athlete_id=a.id) }}?period={{ period }}" class="btn btn-sm btn-outline-primary">Analytics</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div></div>
+
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <h5 class="card-title mb-1">Plan completion vs. improvement</h5>
+    <p class="chart-note mb-3">
+        Each dot is one athlete. <span id="planCorr"></span>
+        With this few athletes the result is only indicative and does not show cause and effect.
+    </p>
+    <div style="height: 300px; max-width: 640px;"><canvas id="planChart"></canvas></div>
+</div></div>
+
+<script>
+    const A = {{ athletes | tojson }};
+    const colorOf = i => VIZ.series[i % VIZ.series.length];
+
+    new Chart(document.getElementById('compareChart'), {
+        type: 'line',
+        data: {
+            datasets: A.map((a, i) => ({
+                label: a.name, borderColor: colorOf(i), backgroundColor: colorOf(i), pointRadius: 0, pointHoverRadius: 4,
+                data: a.dates.map((d, j) => ({ x: d, y: a.ma30[j] })).filter(p => p.y !== null),
+            }))
+        },
+        options: {
+            interaction: { mode: 'index', intersect: false },
+            parsing: { xAxisKey: 'x', yAxisKey: 'y' },
+            plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw.y)}` } } },
+            scales: {
+                x: { type: 'category', labels: [...new Set(A.flatMap(a => a.dates))].sort(),
+                     ticks: { maxTicksLimit: 12, maxRotation: 0 }, grid: { display: false } },
+                y: { title: { display: true, text: 'Average arrow score' } }
+            }
+        }
+    });
+
+    // Plan completion vs improvement, with Pearson r over the athletes that have both values
+    (function () {
+        const pts = A.map((a, i) => ({ x: a.plan_rate, y: a.improvement, name: a.name, i }))
+                     .filter(p => p.x !== null && p.y !== null);
+        new Chart(document.getElementById('planChart'), {
+            type: 'scatter',
+            data: { datasets: pts.map(p => ({ label: p.name, data: [p], backgroundColor: colorOf(p.i),
+                                              pointRadius: 7, pointHoverRadius: 9, borderColor: '#ffffff', borderWidth: 2 })) },
+            options: {
+                plugins: { tooltip: { callbacks: { label: c => `${c.raw.name}: ${fmt(c.raw.x, 1)} % done, improvement ${fmt(c.raw.y)}` } } },
+                scales: { x: { title: { display: true, text: 'Plans completed (%)' } },
+                          y: { title: { display: true, text: 'Improvement (points per arrow)' } } }
+            }
+        });
+        if (pts.length >= 3) {
+            const n = pts.length, mx = pts.reduce((s, p) => s + p.x, 0) / n, my = pts.reduce((s, p) => s + p.y, 0) / n;
+            const sxy = pts.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
+            const sxx = pts.reduce((s, p) => s + (p.x - mx) ** 2, 0), syy = pts.reduce((s, p) => s + (p.y - my) ** 2, 0);
+            if (sxx > 0 && syy > 0) document.getElementById('planCorr').textContent = `Pearson r = ${(sxy / Math.sqrt(sxx * syy)).toFixed(2)} (n = ${n}).`;
+        }
+    })();
+
+    // Sortable table
+    document.querySelectorAll('#metricsTable th[data-type]').forEach((th, col) => {
+        th.style.cursor = 'pointer';
+        th.addEventListener('click', () => {
+            const tbody = th.closest('table').querySelector('tbody');
+            const dir = th.dataset.dir === 'desc' ? 'asc' : 'desc';
+            th.closest('tr').querySelectorAll('th').forEach(h => { delete h.dataset.dir; h.textContent = h.textContent.replace(/ [▲▼]$/, ''); });
+            th.dataset.dir = dir; th.textContent += dir === 'desc' ? ' ▼' : ' ▲';
+            const key = tr => tr.children[col].dataset.v;
+            [...tbody.rows].sort((a, b) => {
+                const va = key(a), vb = key(b);
+                if (va === '' || vb === '') return va === '' ? 1 : -1;
+                const cmp = th.dataset.type === 'num' ? parseFloat(va) - parseFloat(vb) : va.localeCompare(vb);
+                return dir === 'desc' ? -cmp : cmp;
+            }).forEach(tr => tbody.appendChild(tr));
+        });
+    });
+</script>
+{% else %}
+<div class="alert alert-warning text-center p-5">No athletes with enough data in this period.</div>
+{% endif %}
+</div>
+{% endblock %}
