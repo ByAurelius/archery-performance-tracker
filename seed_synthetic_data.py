@@ -174,16 +174,31 @@ def limb_change_days(p):
     return days
 
 
+def day_weather(rng, t):
+    doy = (START_DATE + timedelta(days=t)).timetuple().tm_yday
+    temp = 10 + 10 * math.sin(2 * math.pi * (doy - 110) / 365) + rng.gauss(0, 3)
+    speed = max(0.0, 10 + 4 * math.cos(2 * math.pi * (doy - 15) / 365) + rng.gauss(0, 4))
+    direction = rng.gauss(270, 60) % 360  # prevailing westerly
+    return dict(temp=round(temp, 1), speed=round(speed, 1), direction=round(direction))
+
+
 def generate_weather(rng):
     """One weather record per day, shared by every student (same club)."""
-    weather = []
-    for t in range(DAYS):
-        doy = (START_DATE + timedelta(days=t)).timetuple().tm_yday
-        temp = 10 + 10 * math.sin(2 * math.pi * (doy - 110) / 365) + rng.gauss(0, 3)
-        speed = max(0.0, 10 + 4 * math.cos(2 * math.pi * (doy - 15) / 365) + rng.gauss(0, 4))
-        direction = rng.gauss(270, 60) % 360  # prevailing westerly
-        weather.append(dict(temp=round(temp, 1), speed=round(speed, 1), direction=round(direction)))
-    return weather
+    return [day_weather(rng, t) for t in range(DAYS)]
+
+
+def expected_day_average(username, t, n=500):
+    """The best forecast any model could make for day t: the mean arrow score the
+    simulation would produce on average, over n independent draws of everything that
+    is random on the day (form, fatigue, focus, weather and the arrows themselves).
+    The gap between this and the real day is pure chance that no model can predict."""
+    p = next(p for p in PROFILES if p['username'] == username)
+    rng, limb_days = random.Random(f'oracle-{username}-{t}'), limb_change_days(p)
+    total = 0.0
+    for _ in range(n):
+        _, _, shots = simulate_day(rng, p, t, day_weather(rng, t), rng.gauss(4.5, 1.7), limb_days)
+        total += sum(s[2] for s in shots) / len(shots)
+    return total / n
 
 
 def simulate_day(rng, p, t, w, prev_fatigue, limb_days):
