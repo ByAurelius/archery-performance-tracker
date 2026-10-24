@@ -56,7 +56,6 @@ class Score(db.Model):
     arrows_shot = db.Column(db.Integer, nullable=False)
     total_score = db.Column(db.Integer, nullable=False)
     image_file = db.Column(db.String(255), nullable=True)
-    arrow_data = db.Column(db.Text, nullable=True)
     arrows_per_end = db.Column(db.Integer, default=6)
     weather_temp = db.Column(db.String(20), nullable=True)
     wind_speed = db.Column(db.String(20), nullable=True)
@@ -234,7 +233,7 @@ def add_score_page():
         new_score = Score(
             date=date.fromisoformat(request.form.get('date')), distance=request.form.get('distance'),
             arrows_shot=arrows_shot_count, total_score=sum(a.score for a in arrow_rows),
-            arrow_data=request.form.get('arrow_data'), arrows_per_end=arrows_per_end,
+            arrows_per_end=arrows_per_end,
             image_file=filename, weather_temp=request.form.get('weather_temp'),
             wind_speed=request.form.get('wind_speed'), wind_direction=request.form.get('wind_direction'),
             fatigue_level=request.form.get('fatigue_level'), focus_level=request.form.get('focus_level'),
@@ -326,7 +325,10 @@ def view_training_page(score_id):
     if 'user_id' not in session: return redirect(url_for('login_page'))
     score = Score.query.get_or_404(score_id)
     if score.archer_id == session['user_id'] or session.get('is_coach'):
-        return render_template('view_training.html', score=score)
+        # mm from the centre -> canvas pixels for drawing
+        arrows = [dict(x=CANVAS_CENTER_PX + a.x_mm / MM_PER_PX, y=CANVAS_CENTER_PX - a.y_mm / MM_PER_PX,
+                       score=a.score, end=a.end_no) for a in score.arrows]
+        return render_template('view_training.html', score=score, arrows=arrows)
     return redirect(url_for('home_page'))
 
 
@@ -349,9 +351,8 @@ def dashboard_page():
                                plans=TrainingPlan.query.filter_by(athlete_id=session['user_id']).all(),
                                total_sessions=len(scores),
                                total_arrows_ever=sum(s.arrows_shot for s in scores),
-                               perfect_10s=sum(
-                                   sum(1 for a in json.loads(s.arrow_data) if a.get('score') == 10) for s in scores if
-                                   s.arrow_data))
+                               perfect_10s=Arrow.query.join(Score).filter(Score.archer_id == session['user_id'],
+                                                                          Arrow.score == 10).count())
     return redirect(url_for('login_page'))
 
 
