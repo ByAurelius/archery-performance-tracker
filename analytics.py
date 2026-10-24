@@ -92,6 +92,19 @@ def linear_trend(sessions):
                 r2=_clean(fit.rvalue ** 2, 3), p=_clean(fit.pvalue, 4), start=s['date'].min())
 
 
+def recent_trend(sessions, days=90):
+    """Linear trend over the last `days` days only: the current direction, which can
+    differ from the whole period when an archer improved early and then levelled off."""
+    recent = sessions[sessions['date'] > sessions['date'].max() - pd.Timedelta(days=days)]
+    t = linear_trend(recent)
+    return t['slope_per_30'] if t else None
+
+
+def detrend(series, window=31):
+    """Series minus its centred moving average: what is left is the day-to-day variation."""
+    return series - series.rolling(window, center=True, min_periods=1).mean()
+
+
 def window_mean(sessions, start, end):
     """Mean session average for start <= date < end."""
     s = sessions[(sessions['date'] >= start) & (sessions['date'] < end)]['avg'].dropna()
@@ -118,9 +131,11 @@ def summary(sessions, arrows):
         pct_10=_clean((arrows['score'] == 10).mean() * 100, 1),
         pct_miss=_clean((arrows['score'] == 0).mean() * 100, 1),
         consistency=_clean(sessions['avg'].std(), 3),
+        day_to_day=_clean(detrend(sessions.sort_values('date')['avg']).std(), 3),
         trend_per_30=trend['slope_per_30'] if trend else None,
         trend_r2=trend['r2'] if trend else None,
         trend_p=trend['p'] if trend else None,
+        recent_trend_per_30=recent_trend(sessions),
         best_date=best['date'].date().isoformat(), best_total=int(best['total_score']),
         **group_stats(arrows['x_mm'], arrows['y_mm']),
     )
@@ -213,11 +228,11 @@ def correlations(sessions):
     moving average, which removes the slow learning and seasonal trends.
     """
     s = sessions.sort_values('date')
-    residual = s['avg'] - s['avg'].rolling(31, center=True, min_periods=1).mean()
+    residual = detrend(s['avg'])
     factors = []
     for col, label in CORRELATION_VARS[1:]:
         r, p = _pearson(s[col], s['avg'])
-        r_d, p_d = _pearson(s[col] - s[col].rolling(31, center=True, min_periods=1).mean(), residual)
+        r_d, p_d = _pearson(detrend(s[col].astype(float)), residual)
         pair = s[[col, 'avg']].dropna()
         factors.append(dict(key=col, label=label, r=_clean(r, 3), p=_clean(p, 4), n=len(pair),
                             r_detrended=_clean(r_d, 3), p_detrended=_clean(p_d, 4),

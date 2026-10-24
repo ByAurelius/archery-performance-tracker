@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% macro help(text) %}<span class="help" data-bs-toggle="tooltip" data-bs-title="{{ text }}" tabindex="0" aria-label="{{ text }}">?</span>{% endmacro %}
 {% block content %}
 {% include '_chart_theme.html' %}
 {% if training.running %}<meta http-equiv="refresh" content="5">{% endif %}
@@ -6,66 +7,104 @@
 <div class="viz-root mb-5">
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
-        <h2 class="mb-0">🤖 Forecast Model</h2>
-        <span class="text-muted">LSTM forecast of the next 30 sessions, compared with simple baselines</span>
+        <h2 class="mb-0">🔮 Score Predictions</h2>
+        <span class="text-muted">How the AI predicts next month, and how much you can trust it</span>
     </div>
     <form method="POST" action="{{ url_for('retrain_model') }}" class="d-flex gap-2 align-items-center">
         <a href="/coach_dashboard" class="btn btn-sm btn-secondary">&larr; Coach Panel</a>
         <button type="submit" class="btn btn-sm btn-primary" {% if training.running %}disabled{% endif %}
-                onclick="return confirm('Retrain the model on all current data? This takes about a minute.')">
-            {% if training.running %}Training…{% else %}↻ Retrain model{% endif %}
+                title="Teach the AI again using all sessions recorded so far"
+                onclick="return confirm('Retrain the AI on all current data? This takes about a minute.')">
+            {% if training.running %}Learning…{% else %}↻ Retrain the AI{% endif %}
         </button>
     </form>
 </div>
 
 {% if training.running or training.finished %}
 <div class="alert {% if training.error %}alert-danger{% elif training.running %}alert-info{% else %}alert-success{% endif %} small">
-    {% if training.running %}<strong>Training started {{ training.started }}.</strong> This page refreshes every 5 seconds.
-    {% elif training.error %}<strong>Training failed:</strong> {{ training.error }}
-    {% else %}<strong>Training finished {{ training.finished }}.</strong> All forecasts were refreshed.{% endif %}
-    {% if training.log %}<pre class="mb-0 mt-2 small" style="white-space: pre-wrap;">{{ training.log | join('\n') }}</pre>{% endif %}
+    {% if training.running %}<strong>The AI is learning from the latest data (started {{ training.started }}).</strong> This page refreshes every 5 seconds.
+    {% elif training.error %}<strong>Retraining failed:</strong> {{ training.error }}
+    {% else %}<strong>Finished {{ training.finished }}.</strong> Every athlete's prediction has been updated.{% endif %}
+    {% if training.log %}<details class="mt-2"><summary>Training log</summary><pre class="mb-0 mt-2 small" style="white-space: pre-wrap;">{{ training.log | join('\n') }}</pre></details>{% endif %}
 </div>
 {% endif %}
 
 {% if evaluation %}
-{% set c = evaluation.config %}
-<div class="row g-3 mb-4">
+{% set r = reliability %}
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <h5 class="card-title mb-2">How it works</h5>
+    <p class="mb-0">The AI looks at an athlete's last <strong>60 sessions</strong> (scores, grouping, tiredness, focus and wind) and predicts the
+        <strong>next 30</strong>. It learnt how scores usually develop from the sessions of all athletes, and it updates an athlete's
+        prediction automatically every time a new session is saved. It was last trained on {{ evaluation.trained_at }}.</p>
+</div></div>
+
+<h5 class="mb-3">How much can you trust it?</h5>
+<div class="row g-3 mb-3">
     <div class="col-6 col-lg-3"><div class="kpi-card">
-        <div class="kpi-label">Trained</div>
-        <div class="kpi-value fs-5">{{ evaluation.trained_at }}</div>
-        <div class="kpi-sub">{{ evaluation.duration_s }} s including evaluation</div>
+        <div class="kpi-label">Daily result {{ help('Average gap between the predicted and the real result of a single session, tested on the last two months of data that the AI had not seen.') }}</div>
+        <div class="kpi-value">± {{ r.session_error }}</div>
+        <div class="kpi-sub">points per 100-arrow session</div>
     </div></div>
     <div class="col-6 col-lg-3"><div class="kpi-card">
-        <div class="kpi-label">Training data</div>
-        <div class="kpi-value fs-5">{{ c.train_windows }} windows</div>
-        <div class="kpi-sub">{{ c.archers | length }} archers · {{ c.val_windows }} validation windows</div>
+        <div class="kpi-label">Monthly average {{ help('Gap between the predicted and the real average over the whole month.') }}</div>
+        <div class="kpi-value">± {{ (r.month_error * 100)|round|int }}</div>
+        <div class="kpi-sub">points per 100 arrows</div>
     </div></div>
     <div class="col-6 col-lg-3"><div class="kpi-card">
-        <div class="kpi-label">Input → output</div>
-        <div class="kpi-value fs-5">{{ c.input_days }} → {{ c.horizon }} sessions</div>
-        <div class="kpi-sub">{{ c.features | join(', ') }}</div>
+        <div class="kpi-label">Vs. a simple guess {{ help('The simple guess assumes the next month will look exactly like the last 30 days.') }}</div>
+        <div class="kpi-value fs-5">{{ r.vs_simple|capitalize }}</div>
+        <div class="kpi-sub">{% if r.vs_simple != 'about as accurate' %}{{ r.gain_pct }}% {{ 'smaller' if r.vs_simple == 'more accurate' else 'larger' }} error than "next month = last 30 days"{% else %}than "next month = last 30 days"{% endif %}</div>
     </div></div>
     <div class="col-6 col-lg-3"><div class="kpi-card">
-        <div class="kpi-label">Network</div>
-        <div class="kpi-value fs-5">2 × LSTM({{ c.hidden }})</div>
-        <div class="kpi-sub">dropout {{ c.dropout }} · best epoch {{ c.best_epoch }} · anchor = last {{ c.anchor_days }} sessions</div>
+        <div class="kpi-label">Likely range {{ help('Each prediction comes with a range that should contain the real result on 8 out of 10 days.') }}</div>
+        <div class="kpi-value">{{ r.coverage|round|int }}%</div>
+        <div class="kpi-sub">of real results fell inside the predicted range (aim: 80%)</div>
     </div></div>
 </div>
-
-<!-- Overall results -->
 <div class="card shadow-sm mb-4"><div class="card-body">
-    <h5 class="card-title mb-1">Test results (last two months of data)</h5>
-    <p class="chart-note mb-3">
-        Every day of the test period is used as a forecast start; errors are averaged over all 30-day forecasts.
-        <strong>MAE</strong> and <strong>RMSE</strong> measure the daily error in points per arrow; <strong>month error</strong> is the error of the forecast 30-day average.
-        Lower is better. The best real model in each column is in bold.
-    </p>
-    {% set real = evaluation.overall.items() | rejectattr('0', 'equalto', 'Oracle (simulator expectation)') | list %}
-    {% set best_mae = real | map(attribute='1.mae') | min %}
-    {% set best_rmse = real | map(attribute='1.rmse') | min %}
-    {% set best_month = real | map(attribute='1.month_error') | min %}
-    <div class="table-responsive">
-        <table class="table align-middle mb-2" style="max-width: 760px;">
+    <div class="takeaway"><span>{{ '✅' if r.near_limit else '💡' }}</span><span>
+        {% if r.near_limit %}The predictions are close to the best possible. The remaining error comes from the normal day-to-day ups and downs of archery, which no method can foresee.
+        {% else %}There is still room to improve the predictions.{% endif %}</span></div>
+    <div class="takeaway"><span>{{ '✅' if r.unseen_ok else '⚠️' }}</span><span>
+        {% if r.unseen_ok %}It works just as well for athletes it has never seen before, so it can be used for new athletes once they have 60 sessions.
+        {% else %}It is less accurate for athletes it has not been trained on.{% endif %}</span></div>
+    {% if r.coverage is not none and r.coverage < 78 %}
+    <div class="takeaway"><span>⚠️</span><span>The likely range was a little too narrow in the test period: real results fell outside it more often than expected. Treat it as a guide, not a guarantee.</span></div>
+    {% endif %}
+    <div class="takeaway"><span>💡</span><span>Typical error per athlete (points per 100 arrows):
+        {% for name, v in r.per_archer.items() %}<strong>{{ name }}</strong> ±{{ v }}{% if not loop.last %} · {% endif %}{% endfor %}.
+        Athletes whose results change a lot from day to day are harder to predict.</span></div>
+</div></div>
+
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+        <h5 class="card-title mb-0">See it in action</h5>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Athlete" id="exampleButtons"></div>
+    </div>
+    <p class="chart-note mb-3">A test from the past: the AI only saw the grey sessions on the left and predicted the 30 days on the right. The black line is what really happened.</p>
+    <div style="height: 340px;"><canvas id="exampleChart"></canvas></div>
+</div></div>
+
+<!-- Technical details for research -->
+{% set c = evaluation.config %}
+<details class="tech-details card shadow-sm mb-4 px-3" id="techDetails">
+    <summary>🔬 Technical details (model evaluation used in the research)</summary>
+    <div class="pb-3">
+        <h6 class="mt-2">Model</h6>
+        <p class="small mb-3">
+            Shared 2-layer LSTM ({{ c.hidden }} units, dropout {{ c.dropout }}) with a linear head. Input: {{ c.input_days }} sessions × {{ c.features | length }} features
+            ({{ c.features | join(', ') }}), standardised per archer. Output: the next {{ c.horizon }} session averages relative to the mean of the last {{ c.anchor_days }} sessions.
+            Chronological split on target days (train &lt; {{ c.train_end }} ≤ validation &lt; {{ c.val_end }} ≤ test). {{ c.train_windows }} training and {{ c.val_windows }} validation windows,
+            early stopping (best epoch {{ c.best_epoch }}, validation MAE {{ c.val_mae }}). Prediction interval: Monte Carlo dropout ({{ c.mc_samples }} samples) combined with
+            the archer's day-to-day SD, ±1.28 σ for 80 %. Trained {{ evaluation.trained_at }} in {{ evaluation.duration_s }} s.
+        </p>
+
+        <h6>Test results (all test windows, points per arrow)</h6>
+        {% set real = evaluation.overall.items() | rejectattr('0', 'equalto', 'Oracle (simulator expectation)') | list %}
+        {% set best_mae = real | map(attribute='1.mae') | min %}
+        {% set best_rmse = real | map(attribute='1.rmse') | min %}
+        {% set best_month = real | map(attribute='1.month_error') | min %}
+        <table class="table table-sm small align-middle mb-2" style="max-width: 760px;">
             <thead class="table-light"><tr><th>Model</th><th class="text-end">MAE</th><th class="text-end">RMSE</th><th class="text-end">Month error</th></tr></thead>
             <tbody>
                 {% for name, m in evaluation.overall.items() %}
@@ -79,106 +118,86 @@
                 {% endfor %}
             </tbody>
         </table>
-    </div>
-    <p class="chart-note mb-0">
-        <em>Oracle</em> = the simulator's own expected value for each day, available only for the virtual students.
-        It is the best forecast possible in expectation; whatever error remains is day-to-day chance.
-        On a short test period a real model can land slightly above or below it by luck, so small differences are not meaningful.
-    </p>
-</div></div>
+        <p class="chart-note mb-4">Oracle = the simulator's own expected value for each day (virtual students only): the lowest error reachable in expectation.
+            On a short test period a model can land marginally above or below it by chance.</p>
 
-<div class="row g-4 mb-4">
-    <!-- Per archer -->
-    <div class="col-lg-7"><div class="card shadow-sm h-100"><div class="card-body">
-        <h5 class="card-title mb-1">MAE per archer</h5>
-        <p class="chart-note mb-3">Inconsistent archers (large day-to-day swings) are harder to forecast for every model.</p>
-        <div style="height: 300px;"><canvas id="perArcherChart"></canvas></div>
-    </div></div></div>
-    <!-- Leave one out and interval coverage -->
-    <div class="col-lg-5"><div class="card shadow-sm h-100"><div class="card-body">
-        {% if evaluation.coverage %}
-        <h5 class="card-title mb-1">80 % interval coverage</h5>
-        <p class="chart-note mb-2">Share of real test sessions that fell inside the forecast's 80 % band. A well-calibrated band scores close to 80 %.</p>
-        <div class="kpi-value mb-1">{{ evaluation.coverage.overall }} %</div>
-        <div class="kpi-sub mb-4">
-            {% for name, v in evaluation.coverage.per_archer.items() %}{{ name }} {{ v }} %{% if not loop.last %} · {% endif %}{% endfor %}
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <h6>MAE per archer</h6>
+                <div style="height: 280px;"><canvas id="perArcherChart"></canvas></div>
+            </div>
+            <div class="col-lg-5">
+                <h6>Leave-one-archer-out</h6>
+                <table class="table table-sm small mb-3">
+                    <thead><tr><th>Archer</th><th class="text-end">MAE seen</th><th class="text-end">MAE unseen</th><th class="text-end">80 % coverage</th></tr></thead>
+                    <tbody>
+                        {% for name, v in evaluation.leave_one_out.items() %}
+                        <tr><td>{{ name }}</td><td class="text-end">{{ '%.3f'|format(v.seen.mae) }}</td><td class="text-end">{{ '%.3f'|format(v.unseen.mae) }}</td>
+                            <td class="text-end">{{ evaluation.coverage.per_archer[name] if evaluation.coverage else '–' }} %</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-        {% endif %}
-        <h5 class="card-title mb-1">Unseen archer test</h5>
-        <p class="chart-note mb-3">The model is retrained without one archer and then tested on that archer.
-            Similar errors mean it learnt general patterns rather than memorising individuals.</p>
-        <table class="table table-sm mb-0">
-            <thead><tr><th>Archer</th><th class="text-end">MAE, seen in training</th><th class="text-end">MAE, never seen</th></tr></thead>
-            <tbody>
-                {% for name, r in evaluation.leave_one_out.items() %}
-                <tr><td>{{ name }}</td><td class="text-end">{{ '%.3f'|format(r.seen.mae) }}</td><td class="text-end">{{ '%.3f'|format(r.unseen.mae) }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div></div></div>
-</div>
 
-<!-- Worked example -->
-<div class="card shadow-sm mb-4"><div class="card-body">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
-        <h5 class="card-title mb-0">Example: the last 30-day forecast in the test period</h5>
-        <div class="btn-group btn-group-sm" role="group" aria-label="Archer" id="exampleButtons"></div>
+        <h6 class="mt-3">Example with baselines</h6>
+        <div style="height: 300px;"><canvas id="exampleTechChart"></canvas></div>
+
+        <h6 class="mt-4">Training curve</h6>
+        <p class="chart-note">MSE on standardised targets per epoch; the weights of the epoch with the lowest validation loss are kept (patience 30).</p>
+        <div style="height: 240px;"><canvas id="lossChart"></canvas></div>
     </div>
-    <p class="chart-note mb-3">The model sees the 60 sessions on the left and forecasts the 30 on the right, which it has not seen.</p>
-    <div style="height: 340px;"><canvas id="exampleChart"></canvas></div>
-</div></div>
-
-<!-- Training curve -->
-<div class="card shadow-sm mb-4"><div class="card-body">
-    <h5 class="card-title mb-1">Training curve</h5>
-    <p class="chart-note mb-3">Mean squared error on the training and validation windows per epoch. Training stops when the validation error has not improved for 30 epochs; the weights of the best epoch are kept.</p>
-    <div style="height: 260px;"><canvas id="lossChart"></canvas></div>
-</div></div>
+</details>
 
 <script>
     const E = {{ evaluation | tojson }};
+    const archers = Object.keys(E.per_archer);
     const models = Object.keys(E.overall);
     // The oracle is a reference, not a competing model, so it is drawn in neutral dark grey
     const modelColor = name => name.startsWith('Oracle') ? VIZ.text : VIZ.series[models.indexOf(name) % VIZ.series.length];
-    const archers = Object.keys(E.per_archer);
 
-    new Chart(document.getElementById('perArcherChart'), {
-        type: 'bar',
-        data: { labels: archers, datasets: models.map(m => ({ label: m, data: archers.map(a => E.per_archer[a][m]?.mae ?? null),
-                                                               backgroundColor: modelColor(m), borderColor: '#ffffff', borderWidth: 1 })) },
-        options: {
-            plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw, 3)}` } } },
-            scales: { x: { grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: 'MAE (points per arrow)' } } }
-        }
-    });
-
-    let exampleChart;
-    function showExample(name) {
-        const X = E.examples[name], nHist = X.history.length, gap = Array(nHist - 1).fill(null);
+    function exampleDatasets(X, withBaselines) {
+        const nHist = X.history.length, gap = Array(nHist - 1).fill(null);
         const future = arr => [...gap, X.history.at(-1), ...arr];
-        const datasets = [
-            { label: 'Past sessions (model input)', data: [...X.history, ...Array(X.actual.length).fill(null)],
+        const lines = withBaselines ? Object.entries(X.forecasts) : [['LSTM', X.forecasts.LSTM]];
+        return [
+            { label: withBaselines ? 'Input sessions' : 'What the AI saw', data: [...X.history, ...Array(X.actual.length).fill(null)],
               borderColor: VIZ.point, backgroundColor: VIZ.point, borderWidth: 1.5, pointRadius: 0 },
-            { label: 'Actual', data: future(X.actual), borderColor: '#0b0b0b', backgroundColor: '#0b0b0b', borderWidth: 1.5, pointRadius: 2 },
-            ...Object.entries(X.forecasts).map(([m, v]) => ({
-                label: m, data: future(v), borderColor: modelColor(m), backgroundColor: modelColor(m), pointRadius: 0,
+            { label: withBaselines ? 'Actual' : 'What really happened', data: future(X.actual), borderColor: '#0b0b0b', backgroundColor: '#0b0b0b',
+              borderWidth: 1.5, pointRadius: 2 },
+            ...lines.map(([m, v]) => ({
+                label: !withBaselines && m === 'LSTM' ? 'AI prediction' : m, data: future(v), borderColor: m === 'LSTM' ? VIZ.series[6] : modelColor(m),
+                backgroundColor: m === 'LSTM' ? VIZ.series[6] : modelColor(m), pointRadius: 0,
                 borderWidth: m === 'LSTM' ? 2.5 : 1.5, borderDash: m === 'LSTM' ? [] : [5, 4] })),
-            { label: 'LSTM 80 % range (single session)', data: future(X.upper), borderColor: 'transparent', backgroundColor: hexToRgba(VIZ.series[0], 0.15),
-              pointRadius: 0, fill: '+1' },
+            { label: withBaselines ? 'LSTM 80 % interval' : 'Likely range', data: future(X.upper), borderColor: 'transparent',
+              backgroundColor: hexToRgba(VIZ.series[6], 0.15), pointRadius: 0, fill: '+1' },
             { label: 'range-low', data: future(X.lower), borderColor: 'transparent', pointRadius: 0, fill: false },
         ];
+    }
+    const hidden = ['range-low', 'Likely range', 'LSTM 80 % interval'];
+    function exampleOptions(yTitle) {
+        return {
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { labels: { filter: i => i.text !== 'range-low' } },
+                       tooltip: { filter: i => i.raw !== null && !hidden.includes(i.dataset.label),
+                                  callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw)}` } } },
+            scales: { x: { ticks: { maxTicksLimit: 10, maxRotation: 0 }, grid: { display: false } },
+                      y: { title: { display: true, text: yTitle } } }
+        };
+    }
+
+    let exampleChart, exampleTechChart, current = archers[0];
+    function showExample(name) {
+        current = name;
+        const X = E.examples[name];
         if (exampleChart) exampleChart.destroy();
-        exampleChart = new Chart(document.getElementById('exampleChart'), {
-            type: 'line', data: { labels: X.dates, datasets },
-            options: {
-                interaction: { mode: 'index', intersect: false },
-                plugins: { legend: { labels: { filter: i => i.text !== 'range-low' } },
-                           tooltip: { filter: i => i.raw !== null && !['range-low', 'LSTM 80 % range (single session)'].includes(i.dataset.label),
-                                      callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw)}` } } },
-                scales: { x: { ticks: { maxTicksLimit: 10, maxRotation: 0 }, grid: { display: false } },
-                          y: { title: { display: true, text: 'Session average' } } }
-            }
-        });
+        exampleChart = new Chart(document.getElementById('exampleChart'),
+            { type: 'line', data: { labels: X.dates, datasets: exampleDatasets(X, false) }, options: exampleOptions('Score per arrow') });
+        if (exampleTechChart) {
+            exampleTechChart.destroy();
+            exampleTechChart = new Chart(document.getElementById('exampleTechChart'),
+                { type: 'line', data: { labels: X.dates, datasets: exampleDatasets(X, true) }, options: exampleOptions('Session average') });
+        }
         document.querySelectorAll('#exampleButtons button').forEach(b => b.classList.toggle('active', b.textContent === name));
     }
     archers.forEach(name => {
@@ -188,23 +207,40 @@
     });
     showExample(archers[0]);
 
-    new Chart(document.getElementById('lossChart'), {
-        type: 'line',
-        data: { labels: E.history.map(h => h.epoch),
-                datasets: [{ label: 'Training', data: E.history.map(h => h.train_loss), borderColor: VIZ.series[0], backgroundColor: VIZ.series[0], pointRadius: 0 },
-                           { label: 'Validation', data: E.history.map(h => h.val_loss), borderColor: VIZ.series[1], backgroundColor: VIZ.series[1], pointRadius: 0 }] },
-        options: {
-            interaction: { mode: 'index', intersect: false },
-            plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw, 4)}` } } },
-            scales: { x: { title: { display: true, text: 'Epoch' }, ticks: { maxTicksLimit: 12 } },
-                      y: { title: { display: true, text: 'MSE (standardised)' } } }
-        }
+    function drawTechnicalCharts() {
+        new Chart(document.getElementById('perArcherChart'), {
+            type: 'bar',
+            data: { labels: archers, datasets: models.map(m => ({ label: m, data: archers.map(a => E.per_archer[a][m]?.mae ?? null),
+                                                                   backgroundColor: modelColor(m), borderColor: '#ffffff', borderWidth: 1 })) },
+            options: {
+                plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw, 3)}` } } },
+                scales: { x: { grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: 'MAE (points per arrow)' } } }
+            }
+        });
+        const X = E.examples[current];
+        exampleTechChart = new Chart(document.getElementById('exampleTechChart'),
+            { type: 'line', data: { labels: X.dates, datasets: exampleDatasets(X, true) }, options: exampleOptions('Session average') });
+        new Chart(document.getElementById('lossChart'), {
+            type: 'line',
+            data: { labels: E.history.map(h => h.epoch),
+                    datasets: [{ label: 'Training', data: E.history.map(h => h.train_loss), borderColor: VIZ.series[0], backgroundColor: VIZ.series[0], pointRadius: 0 },
+                               { label: 'Validation', data: E.history.map(h => h.val_loss), borderColor: VIZ.series[1], backgroundColor: VIZ.series[1], pointRadius: 0 }] },
+            options: {
+                interaction: { mode: 'index', intersect: false },
+                plugins: { tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.raw, 4)}` } } },
+                scales: { x: { title: { display: true, text: 'Epoch' }, ticks: { maxTicksLimit: 12 } },
+                          y: { title: { display: true, text: 'MSE (standardised)' } } }
+            }
+        });
+    }
+    document.getElementById('techDetails').addEventListener('toggle', function () {
+        if (this.open && !this.dataset.drawn) { this.dataset.drawn = '1'; drawTechnicalCharts(); }
     });
 </script>
 {% else %}
 <div class="alert alert-warning text-center p-5">
-    <h4 class="alert-heading">No trained model yet</h4>
-    <p>Click <strong>Retrain model</strong> or run <code>python train_forecast.py</code>.</p>
+    <h4 class="alert-heading">The AI has not been trained yet</h4>
+    <p>Click <strong>Retrain the AI</strong> to create the first predictions.</p>
 </div>
 {% endif %}
 </div>

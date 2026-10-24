@@ -9,6 +9,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, m
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import analytics
+import insights
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -429,6 +430,7 @@ def render_analytics(archer, period, coach_view):
                 month_mean=round(sum(r.predicted for r in rows) / len(rows), 2),
                 change=round(sum(r.predicted for r in rows) / len(rows) - recent, 2) + 0.0,  # + 0.0 turns -0.0 into 0.0
                 created_at=rows[0].created_at.strftime('%Y-%m-%d %H:%M'))
+        report['plain'] = insights.plain_report(report, sessions)
     return render_template('analytics.html', archer=archer, report=report, period=period, coach_view=coach_view)
 
 
@@ -457,13 +459,16 @@ def compare_page():
         sessions, arrows, plans, _ = load_period_data(athlete.id, period)
         if len(sessions) < 3 or arrows.empty: continue
         plan_stats = analytics.plan_effect(plans, sessions)
-        athletes.append(dict(id=athlete.id, name=athlete.first_name or athlete.username,
-                             summary=analytics.summary(sessions, arrows),
+        summary, fat = analytics.summary(sessions, arrows), analytics.in_session_fatigue(arrows)
+        athletes.append(dict(id=athlete.id, name=athlete.first_name or athlete.username, summary=summary,
                              ma30=analytics.progress(sessions)['ma30'],
                              dates=[d.date().isoformat() for d in sessions['date']],
-                             fatigue_drop=analytics.in_session_fatigue(arrows)['drop'],
+                             fatigue_drop=fat['drop'],
                              plan_rate=plan_stats['rate'] if plan_stats else None,
-                             improvement=analytics.first_last_change(sessions)))
+                             improvement=analytics.first_last_change(sessions),
+                             trend=insights.trend(summary['recent_trend_per_30']),
+                             consistency=insights.consistency(summary['day_to_day']),
+                             fatigue=insights.fatigue(fat['first_half'], fat['second_half'])))
     return render_template('compare.html', athletes=athletes, period=period)
 
 
@@ -471,7 +476,9 @@ def compare_page():
 def model_page():
     if 'user_id' not in session or not session.get('is_coach'): return redirect(url_for('home_page'))
     import forecasting
-    return render_template('model.html', evaluation=forecasting.load_evaluation(), training=_training)
+    evaluation = forecasting.load_evaluation()
+    return render_template('model.html', evaluation=evaluation, training=_training,
+                           reliability=insights.model_reliability(evaluation))
 
 
 @app.route('/coach/model/retrain', methods=['POST'])
