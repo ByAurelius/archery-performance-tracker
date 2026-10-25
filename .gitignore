@@ -219,3 +219,6 @@ __marimo__/
 
 # User uploaded images
 static/uploads/
+
+# Local notes with demo account passwords
+DEMO_ACCOUNTS.md
