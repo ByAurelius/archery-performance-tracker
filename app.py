@@ -3,9 +3,11 @@ import json
 import csv
 import math
 from io import StringIO
+import secrets
 import threading
 from datetime import date, datetime
-from flask import Flask, render_template, request, redirect, url_for, session, make_response
+from dotenv import load_dotenv
+from flask import Flask, render_template, request, redirect, url_for, session, make_response, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import analytics
@@ -13,10 +15,15 @@ import insights
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
+load_dotenv()  # reads settings such as SECRET_KEY from the .env file
 app = Flask(__name__)
 
-app.secret_key = 'archery_secret_key_123'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///archery.db'
+app.secret_key = os.environ.get('SECRET_KEY')
+if not app.secret_key:
+    # Without a fixed key everyone is logged out whenever the app restarts
+    app.secret_key = secrets.token_hex(32)
+    print('WARNING: SECRET_KEY is not set. Copy .env.example to .env and add a key (see README).')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///archery.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
@@ -352,6 +359,7 @@ def view_training_page(score_id):
                        score=a.score, end=a.end_no) for a in score.arrows]
         return render_template('view_training.html', score=score, arrows=arrows)
     return redirect(url_for('home_page'))
+
 
 
 # --- FORECASTING ---
