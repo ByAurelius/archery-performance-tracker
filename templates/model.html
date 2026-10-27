@@ -11,6 +11,7 @@
         <span class="text-muted">How the AI predicts next month, and how much you can trust it</span>
     </div>
     <form method="POST" action="{{ url_for('retrain_model') }}" class="d-flex gap-2 align-items-center">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <a href="/coach_dashboard" class="btn btn-sm btn-secondary">&larr; Coach Panel</a>
         <button type="submit" class="btn btn-sm btn-primary" {% if training.running %}disabled{% endif %}
                 title="Teach the AI again using all sessions recorded so far"

@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, session, make_response, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect, CSRFError
+import uuid
 import analytics
 import insights
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -26,9 +28,12 @@ if not app.secret_key:
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///archery.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # largest accepted upload: 5 MB
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'gif'}
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+csrf = CSRFProtect(app)  # every POST form must carry the csrf_token hidden field
 
 # 122 cm WA target face: radius 610 mm, 10 rings of 61 mm each.
 # The canvas draws it with a 200 px radius, so 1 px = 3.05 mm.
@@ -144,19 +149,68 @@ def page_not_found(e): return render_template('error.html', code=404, message="P
 def server_error(e): return render_template('error.html', code=500, message="Internal Server Error"), 500
 
 
+@app.errorhandler(413)
+def file_too_large(e): return render_template('error.html', code=413, message="File too large (max 5 MB)."), 413
+
+
+@app.errorhandler(CSRFError)
+def csrf_error(e):
+    return render_template('error.html', code=400,
+                           message="This form has expired or was not sent from this site. Please go back, reload the page and try again."), 400
+
+
+# --- FILE UPLOADS ---
+def save_upload(file_storage):
+    """Save an uploaded photo under a random name so users cannot overwrite each other's files.
+    Returns the new file name, or None when no file was chosen; raises ValueError for non-images."""
+    if not file_storage or file_storage.filename == '': return None
+    name = secure_filename(file_storage.filename)
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise ValueError('Only image files can be uploaded (PNG, JPG, JPEG, WEBP or GIF).')
+    filename = f'{uuid.uuid4().hex}.{ext}'
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    file_storage.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    return filename
+
+
 # --- ROUTES ---
 @app.route('/')
 def home_page(): return render_template('index.html')
 
 
+def is_valid_coach_code(code):
+    """Coach accounts need the invite code from .env; an unset or placeholder code blocks them all."""
+    expected = os.environ.get('COACH_INVITE_CODE', '')
+    if expected in ('', 'change-me'): return False
+    return secrets.compare_digest(code.encode(), expected.encode())
+
+
 @app.route('/register', methods=['GET', 'POST'])
 def register_page():
     if request.method == 'POST':
-        hashed_password = generate_password_hash(request.form.get('password'))
-        new_archer = Archer(username=request.form.get('username'), email=request.form.get('email'),
-                            password=hashed_password, is_coach=(request.form.get('is_coach') == 'on'))
-        db.session.add(new_archer)
+        username = (request.form.get('username') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        password = request.form.get('password') or ''
+        coach_code = (request.form.get('coach_code') or '').strip()
+        error = None
+        if not username or not email or not password:
+            error = 'Please fill in your username, email and password.'
+        elif len(password) < 8:
+            error = 'The password must be at least 8 characters long.'
+        elif Archer.query.filter_by(username=username).first():
+            error = 'This username is already taken. Please choose another one.'
+        elif Archer.query.filter_by(email=email).first():
+            error = 'An account with this email already exists. Try logging in instead.'
+        elif coach_code and not is_valid_coach_code(coach_code):
+            error = 'The coach invite code is not correct. Leave it empty to sign up as an athlete.'
+        if error:
+            flash(error, 'danger')
+            return render_template('register.html', username=username, email=email)
+        db.session.add(Archer(username=username, email=email, password=generate_password_hash(password),
+                              is_coach=bool(coach_code)))
         db.session.commit()
+        flash('Your account has been created. You can log in now.', 'success')
         return redirect(url_for('login_page'))
     return render_template('register.html')
 
@@ -170,7 +224,8 @@ def login_page():
             session['username'] = archer.username
             session['is_coach'] = archer.is_coach
             return redirect(url_for('coach_dashboard_page') if archer.is_coach else url_for('dashboard_page'))
-        return "<h1>Invalid Email or Password!</h1>"
+        flash('Invalid email or password.', 'danger')
+        return render_template('login.html', email=request.form.get('email', ''))
     return render_template('login.html')
 
 
@@ -223,7 +278,7 @@ def assign_plan(athlete_id):
     return redirect(url_for('athlete_stats_page', athlete_id=athlete_id))
 
 
-@app.route('/complete_plan/<int:plan_id>')
+@app.route('/complete_plan/<int:plan_id>', methods=['POST'])
 def complete_plan(plan_id):
     if 'user_id' not in session: return redirect(url_for('login_page'))
     plan = TrainingPlan.query.get_or_404(plan_id)
@@ -237,12 +292,11 @@ def complete_plan(plan_id):
 def add_score_page():
     if 'user_id' not in session: return redirect(url_for('login_page'))
     if request.method == 'POST':
-        form_image = request.files.get('target_image')
-        filename = None
-        if form_image and form_image.filename != '':
-            filename = secure_filename(form_image.filename)
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            form_image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        try:
+            filename = save_upload(request.files.get('target_image'))
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return render_template('add_score.html'), 400
 
         arrows_per_end = int(request.form.get('arrows_per_end') or 6)
         clicked_arrows = json.loads(request.form.get('arrow_data') or '[]')
@@ -278,7 +332,7 @@ def add_score_page():
     return render_template('add_score.html')
 
 
-@app.route('/reset_string_lifespan')
+@app.route('/reset_string_lifespan', methods=['POST'])
 def reset_string_lifespan():
     if 'user_id' not in session: return redirect(url_for('login_page'))
     archer = Archer.query.get(session['user_id'])
@@ -306,12 +360,11 @@ def export_csv():
 def add_sight_mark_page():
     if 'user_id' not in session: return redirect(url_for('login_page'))
     if request.method == 'POST':
-        form_image = request.files.get('sight_image')
-        filename = None
-        if form_image and form_image.filename != '':
-            filename = secure_filename(form_image.filename)
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            form_image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        try:
+            filename = save_upload(request.files.get('sight_image'))
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return render_template('add_sight_mark.html'), 400
         db.session.add(SightMark(date_recorded=request.form.get('date'), distance=request.form.get('distance'),
                                  setting=request.form.get('setting'), image_file=filename,
                                  archer_id=session['user_id']))
@@ -573,4 +626,5 @@ def logout_page():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Debug mode only when FLASK_DEBUG=1 in .env: its debugger can run any code if exposed
+    app.run(debug=os.environ.get('FLASK_DEBUG', '0') == '1')

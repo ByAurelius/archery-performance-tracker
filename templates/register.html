@@ -6,21 +6,24 @@
             <div class="card-body">
                 <h3 class="card-title text-center mb-4">Create an Account</h3>
                 <form method="POST" action="/register">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label class="form-label">Username:</label>
-                        <input type="text" name="username" class="form-control" required>
+                        <input type="text" name="username" class="form-control" value="{{ username or '' }}" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Email:</label>
-                        <input type="email" name="email" class="form-control" required>
+                        <input type="email" name="email" class="form-control" value="{{ email or '' }}" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Password:</label>
-                        <input type="password" name="password" class="form-control" required>
+                        <input type="password" name="password" class="form-control" minlength="8" required>
+                        <div class="form-text">At least 8 characters.</div>
                     </div>
-                    <div class="mb-4 form-check">
-                        <input type="checkbox" class="form-check-input" id="isCoachCheck" name="is_coach">
-                        <label class="form-check-label fw-bold" for="isCoachCheck">I am a Coach</label>
+                    <div class="mb-4">
+                        <label class="form-label" for="coachCode">Coach invite code <span class="text-muted fw-normal">(optional)</span>:</label>
+                        <input type="text" name="coach_code" id="coachCode" class="form-control" autocomplete="off">
+                        <div class="form-text">Only for coaches. Athletes leave this empty. Ask your club for the code.</div>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Sign Up</button>
                 </form>

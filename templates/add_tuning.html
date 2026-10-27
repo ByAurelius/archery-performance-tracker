@@ -6,6 +6,7 @@
             <div class="card-body">
                 <h3 class="card-title text-center text-info mb-4">Add Bow Tuning Setup</h3>
                 <form method="POST" action="/add_tuning">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Date:</label>

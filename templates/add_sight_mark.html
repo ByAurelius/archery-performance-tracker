@@ -6,6 +6,7 @@
             <div class="card-body">
                 <h3 class="card-title text-center mb-4">Add Sight Mark</h3>
                 <form method="POST" action="/add_sight_mark" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label class="form-label">Date:</label>
                         <input type="date" name="date" class="form-control" required>

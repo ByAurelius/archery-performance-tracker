@@ -45,6 +45,7 @@
                 <h4 class="card-title text-center mb-4">Official Scorecard</h4>
 
                 <form method="POST" action="/add_score" id="scoreForm" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row mb-3">
                         <div class="col-4">
                             <label class="form-label fw-bold">Date:</label>

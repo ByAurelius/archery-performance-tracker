@@ -51,6 +51,7 @@
             <div class="card-body">
                 <h5 class="card-title text-success">Assign New Training Plan</h5>
                 <form method="POST" action="/assign_plan/{{ athlete.id }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-2"><label class="form-label small fw-bold">Plan Title:</label><input type="text" name="title" class="form-control form-control-sm" required></div>
                     <div class="mb-2"><label class="form-label small fw-bold">Date:</label><input type="date" name="date_assigned" class="form-control form-control-sm" required></div>
                     <div class="mb-3"><label class="form-label small fw-bold">Description / Tasks:</label><textarea name="description" class="form-control form-control-sm" rows="3" required></textarea></div>

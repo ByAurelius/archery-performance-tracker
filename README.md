@@ -18,6 +18,7 @@ This project was built as a bachelor's thesis. Because real long-term training d
 - [Project structure](#project-structure)
 - [How the data is simulated](#how-the-data-is-simulated)
 - [How the prediction model works](#how-the-prediction-model-works)
+- [Security](#security)
 - [Running the tests](#running-the-tests)
 - [Limitations](#limitations)
 
@@ -85,13 +86,21 @@ pip install -r requirements.txt
 
 **3. Create your settings file**
 
-Copy `.env.example` to `.env` (on Windows: `copy .env.example .env`) and replace `change-me` with a random secret key. You can generate one with:
+Copy `.env.example` to `.env` (on Windows: `copy .env.example .env`) and fill in the three settings:
+
+| Setting | What to put there |
+|---|---|
+| `SECRET_KEY` | A long random value. It signs login sessions, so keep it private. |
+| `FLASK_DEBUG` | `0` normally. Set `1` only on your own computer while developing. |
+| `COACH_INVITE_CODE` | A code you choose and give only to coaches. Leave it empty to stop anyone signing up as a coach. |
+
+You can generate a secret key with:
 
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-The key signs login sessions, so keep it private. `.env` is never committed to Git. Without it the app still starts, but everyone is logged out whenever it restarts.
+`.env` is never committed to Git. Without a secret key the app still starts, but everyone is logged out whenever it restarts.
 
 **4. Create the database**
 
@@ -193,17 +202,26 @@ The model looks at an archer's last **60 sessions** (session average, score spre
 
 MAE = Mean Absolute Error, RMSE = Root Mean Square Error. An MAE of 0.225 means a prediction is off by about ±23 points over a 100-arrow session. The LSTM matches the oracle, which is the best possible forecast in expectation, so almost all of the remaining error is day-to-day chance. It performs just as well on archers it was not trained on (leave-one-archer-out test).
 
+## Security
+
+- **Settings outside the code:** the secret key, debug mode and coach invite code live in `.env`, which is not in Git.
+- **Coach accounts need an invite code:** on the sign-up page a new user becomes a coach only with the code from `.env`. Without a valid code they get an athlete account.
+- **Passwords** are stored only as salted hashes (Werkzeug). Sign-up needs at least 8 characters and shows a clear message for duplicate usernames or emails.
+- **CSRF protection** (Flask-WTF) on every form, and every action that changes data (saving, deleting, marking a plan done, resetting the string counter) only works through a form, never through a plain link.
+- **Access control:** athletes see and delete only their own sessions; coach pages check the coach role.
+- **Safe uploads:** only PNG, JPG, JPEG, WEBP and GIF images up to 5 MB, saved under a random file name so nobody can overwrite another user's photo.
+
 ## Running the tests
 
 ```bash
 python -m pytest
 ```
 
-The 32 tests cover the statistics, the plain-language labels, the forecasting pipeline (including checks that no future data leaks into the training windows) and the web routes, which run against a temporary in-memory database.
+The 41 tests cover the statistics, the plain-language labels, the forecasting pipeline (including checks that no future data leaks into the training windows), the web routes and the security measures. Route tests run against a temporary in-memory database.
 
 ## Limitations
 
 - **Simulated data.** The model learns the patterns defined in the simulation. Real archers also have injuries, competitions, breaks and irregular training, so the results have to be confirmed with real data, which the app is ready to collect.
 - **Prediction range.** In the test period 74 % of real sessions fell inside the 80 % likely range (81 % in validation), mainly because the model does not know about upcoming seasonal changes in the weather.
 - **One club.** Every coach can see every athlete; there is no link between a coach and their own athletes yet.
-- **Local development setup.** Debug mode is switched on in the code and anyone can register as a coach. These have to be changed before the app is put online.
+- **Not hosted yet.** The app is built and tested for local use with SQLite and the Flask development server. Putting it online would also need HTTPS, a production server and a regular database backup.
