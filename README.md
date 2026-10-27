@@ -26,7 +26,7 @@ This project was built as a bachelor's thesis. Because real long-term training d
 ## Features
 
 **For archers**
-- **Interactive scorecard:** click where each arrow landed on the target face; the score, end totals and running total are calculated automatically. Every arrow is stored with its position in millimetres from the centre.
+- **Interactive scorecard:** click where each arrow landed on the target face; the score, end totals and running total are calculated automatically. Every arrow is stored with its position in millimetres from the centre. Sessions entered by mistake can be deleted.
 - **Performance analytics** in plain language: key takeaways, progress, consistency, grouping, aim offset, which rings you hit, month-by-month results, tiredness within a session, and how wind, tiredness and focus affect your score.
 - **30-day prediction:** an AI forecast of your next month with a likely range.
 - **Equipment logs:** sight marks for each distance and bow tuning records (brace height, tiller, nocking point, draw weight).
@@ -83,7 +83,17 @@ pip install -r requirements.txt
 
 > PyTorch is about 200 MB. On Linux, `pip install torch --index-url https://download.pytorch.org/whl/cpu` installs the smaller CPU-only build first.
 
-**3. Create the database**
+**3. Create your settings file**
+
+Copy `.env.example` to `.env` (on Windows: `copy .env.example .env`) and replace `change-me` with a random secret key. You can generate one with:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+The key signs login sessions, so keep it private. `.env` is never committed to Git. Without it the app still starts, but everyone is logged out whenever it restarts.
+
+**4. Create the database**
 
 ```bash
 flask --app app db upgrade
@@ -91,7 +101,7 @@ flask --app app db upgrade
 
 This creates an empty database in `instance/archery.db`. The database file is not stored in Git.
 
-**4. Add the demo accounts and the simulated data**
+**5. Add the demo accounts and the simulated data**
 
 ```bash
 python create_demo_users.py
@@ -100,7 +110,7 @@ python seed_synthetic_data.py
 
 The second command generates one year of data for five virtual students in a few seconds. It always produces exactly the same data; add `--reset` to delete and regenerate the virtual students.
 
-**5. Train the prediction model**
+**6. Train the prediction model**
 
 ```bash
 python train_forecast.py
@@ -108,7 +118,7 @@ python train_forecast.py
 
 Takes about a minute on a normal laptop. It trains and evaluates the LSTM, saves it to `models/`, and creates a 30-day prediction for every archer with at least 60 sessions.
 
-**6. Start the app**
+**7. Start the app**
 
 ```bash
 python app.py
@@ -189,11 +199,11 @@ MAE = Mean Absolute Error, RMSE = Root Mean Square Error. An MAE of 0.225 means 
 python -m pytest
 ```
 
-The 25 unit tests cover the statistics, the plain-language labels and the forecasting pipeline, including checks that no future data leaks into the training windows.
+The 29 tests cover the statistics, the plain-language labels, the forecasting pipeline (including checks that no future data leaks into the training windows) and the web routes, which run against a temporary in-memory database.
 
 ## Limitations
 
 - **Simulated data.** The model learns the patterns defined in the simulation. Real archers also have injuries, competitions, breaks and irregular training, so the results have to be confirmed with real data, which the app is ready to collect.
 - **Prediction range.** In the test period 74 % of real sessions fell inside the 80 % likely range (81 % in validation), mainly because the model does not know about upcoming seasonal changes in the weather.
 - **One club.** Every coach can see every athlete; there is no link between a coach and their own athletes yet.
-- **Local development setup.** The secret key and debug mode are set in the code and anyone can register as a coach. These have to be changed before the app is put online.
+- **Local development setup.** Debug mode is switched on in the code and anyone can register as a coach. These have to be changed before the app is put online.

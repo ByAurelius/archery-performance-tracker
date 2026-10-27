@@ -361,6 +361,32 @@ def view_training_page(score_id):
     return redirect(url_for('home_page'))
 
 
+@app.route('/delete_training/<int:score_id>', methods=['POST'])
+def delete_training(score_id):
+    if 'user_id' not in session: return redirect(url_for('login_page'))
+    score = Score.query.get_or_404(score_id)
+    if score.archer_id != session['user_id']:
+        flash('You can only delete your own training sessions.', 'danger')
+        return redirect(url_for('home_page'))
+    session_date, image = score.date, score.image_file
+    archer = db.session.get(Archer, score.archer_id)
+    # The arrows no longer count towards the bowstring's lifespan
+    archer.current_string_arrows = max(0, (archer.current_string_arrows or 0) - score.arrows_shot)
+    db.session.delete(score)  # its arrows are deleted with it (cascade)
+    db.session.commit()
+    # Remove the photo unless another record still uses a file with the same name
+    if image and not Score.query.filter_by(image_file=image).first() \
+            and not SightMark.query.filter_by(image_file=image).first():
+        path = os.path.join(app.config['UPLOAD_FOLDER'], image)
+        if os.path.exists(path): os.remove(path)
+    try:
+        refresh_forecast(archer.id)
+    except Exception as e:  # a failed forecast must not undo the deletion
+        app.logger.warning('Forecast refresh failed: %s', e)
+        db.session.rollback()
+    flash(f'The training session from {session_date} was deleted.', 'success')
+    return redirect(url_for('my_trainings_page'))
+
 
 # --- FORECASTING ---
 # PyTorch is only imported when a forecast is needed, so ordinary pages stay fast.

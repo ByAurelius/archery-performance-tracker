@@ -10,6 +10,12 @@
         {% if score.image_file %}
         <a href="{{ url_for('static', filename='uploads/' + score.image_file) }}" target="_blank" class="btn btn-info text-white me-2">📸 View Real Photo</a>
         {% endif %}
+        {% if score.archer_id == session.get('user_id') %}
+        <form method="POST" action="{{ url_for('delete_training', score_id=score.id) }}" class="d-inline"
+              onsubmit="return confirm('Delete this training session? This cannot be undone.')">
+            <button type="submit" class="btn btn-outline-danger me-2">🗑️ Delete</button>
+        </form>
+        {% endif %}
         <button onclick="history.back()" class="btn btn-secondary">&larr; Go Back</button>
     </div>
 </div>
