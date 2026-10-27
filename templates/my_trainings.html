@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_pagination.html' import render_pagination %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>My Training Sessions</h2>
@@ -31,7 +32,7 @@
                         <td class="text-success fw-bold">{{ score.total_score }}</td>
                         <td class="text-nowrap">
                             <a href="/view_training/{{ score.id }}" class="btn btn-sm btn-primary">View Scorecard</a>
-                            <form method="POST" action="{{ url_for('delete_training', score_id=score.id) }}" class="d-inline"
+                            <form method="POST" action="{{ url_for('delete_training', score_id=score.id, page=pagination.page) }}" class="d-inline"
                                   onsubmit="return confirm('Delete the training session from {{ score.date }}? This cannot be undone.')">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                             </form>
@@ -41,9 +42,10 @@
                 </tbody>
             </table>
         </div>
+        {{ render_pagination(pagination, 'my_trainings_page') }}
         {% else %}
         <div class="alert alert-info">You haven't recorded any training sessions yet.</div>
         {% endif %}
     </div>
 </div>
-{% endblock %}
+{% endblock %}

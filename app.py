@@ -38,7 +38,6 @@ CANVAS_CENTER_PX = 200
 MM_PER_PX = TARGET_RADIUS_MM / CANVAS_CENTER_PX
 
 
-# ... (Database modelleri ayni kalacak) ...
 class Archer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -201,8 +200,12 @@ def athlete_stats_page(athlete_id):
     if 'user_id' not in session or not session.get('is_coach'): return redirect(url_for('home_page'))
     athlete = Archer.query.get_or_404(athlete_id)
     if athlete.is_coach: return redirect(url_for('coach_dashboard_page'))
-    return render_template('athlete_stats.html', athlete=athlete,
-                           scores=Score.query.filter_by(archer_id=athlete.id).all(),
+    page = max(1, request.args.get('page', 1, type=int))
+    history = paginate_sessions(athlete.id, page)
+    if history is None: return redirect(url_for('athlete_stats_page', athlete_id=athlete_id, page=last_page(athlete.id)))
+    return render_template('athlete_stats.html', athlete=athlete, history=history,
+                           # the progress chart needs every session, oldest first
+                           scores=Score.query.filter_by(archer_id=athlete.id).order_by(Score.date, Score.id).all(),
                            sight_marks=SightMark.query.filter_by(archer_id=athlete.id).order_by(
                                SightMark.date_recorded.desc(), SightMark.id.desc()).all(),
                            plans=TrainingPlan.query.filter_by(athlete_id=athlete.id).order_by(
@@ -342,11 +345,30 @@ def tuning_log_page():
     return render_template('tuning_log.html', logs=logs)
 
 
+SESSIONS_PER_PAGE = 20  # rows per page in the training history tables
+
+
+def paginate_sessions(archer_id, page):
+    """One page of an archer's sessions, newest first. Returns None when the
+    requested page is past the end, so the caller can redirect to the last page."""
+    pagination = Score.query.filter_by(archer_id=archer_id).order_by(Score.date.desc(), Score.id.desc()) \
+        .paginate(page=page, per_page=SESSIONS_PER_PAGE, error_out=False)
+    if pagination.pages and page > pagination.pages: return None
+    return pagination
+
+
+def last_page(archer_id):
+    return max(1, math.ceil(Score.query.filter_by(archer_id=archer_id).count() / SESSIONS_PER_PAGE))
+
+
 @app.route('/my_trainings')
 def my_trainings_page():
     if 'user_id' not in session: return redirect(url_for('login_page'))
-    scores = Score.query.filter_by(archer_id=session['user_id']).order_by(Score.id.desc()).all()
-    return render_template('my_trainings.html', scores=scores)
+    page = max(1, request.args.get('page', 1, type=int))
+    pagination = paginate_sessions(session['user_id'], page)
+    if pagination is None:  # e.g. the last session of the last page was just deleted
+        return redirect(url_for('my_trainings_page', page=last_page(session['user_id'])))
+    return render_template('my_trainings.html', scores=pagination.items, pagination=pagination)
 
 
 @app.route('/view_training/<int:score_id>')
@@ -385,7 +407,8 @@ def delete_training(score_id):
         app.logger.warning('Forecast refresh failed: %s', e)
         db.session.rollback()
     flash(f'The training session from {session_date} was deleted.', 'success')
-    return redirect(url_for('my_trainings_page'))
+    # Stay on the page the user deleted from (my_trainings_page moves back if it is now empty)
+    return redirect(url_for('my_trainings_page', page=request.args.get('page', 1, type=int)))
 
 
 # --- FORECASTING ---

@@ -1,0 +1,30 @@
+{# Bootstrap page navigation for a Flask-SQLAlchemy Pagination object.
+   Usage:  {% from '_pagination.html' import render_pagination %}
+           {{ render_pagination(pagination, 'endpoint_name', other_url_arg=value) }}
+   Extra keyword arguments are passed on to url_for, e.g. athlete_id on the coach page. #}
+{% macro render_pagination(pagination, endpoint) %}
+{% if pagination.pages > 1 %}
+<nav aria-label="Training history pages" class="mt-3">
+    <ul class="pagination justify-content-center flex-wrap mb-1">
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for(endpoint, page=pagination.prev_num, **kwargs) if pagination.has_prev else '#' }}">&laquo; Previous</a>
+        </li>
+        {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+            {% if p is none %}
+                <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+            {% elif p == pagination.page %}
+                <li class="page-item active" aria-current="page"><span class="page-link">{{ p }}</span></li>
+            {% else %}
+                <li class="page-item"><a class="page-link" href="{{ url_for(endpoint, page=p, **kwargs) }}">{{ p }}</a></li>
+            {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for(endpoint, page=pagination.next_num, **kwargs) if pagination.has_next else '#' }}">Next &raquo;</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+{% if pagination.total %}
+<p class="text-center text-muted small mb-0">Showing {{ pagination.first }}&ndash;{{ pagination.last }} of {{ pagination.total }} sessions</p>
+{% endif %}
+{% endmacro %}

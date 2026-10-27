@@ -72,3 +72,32 @@ def test_delete_needs_post_and_login(client):
     r = client.post(f'/delete_training/{score.id}')
     assert r.status_code == 302 and '/login' in r.headers['Location']
     assert db.session.get(Score, score.id) is not None
+
+
+def test_training_history_is_paginated(client):
+    register_and_login(client, 'zeynep')
+    for _ in range(25): add_session(client)
+
+    page1 = client.get('/my_trainings').data
+    page2 = client.get('/my_trainings?page=2').data
+    assert page1.count(b'View Scorecard') == 20       # SESSIONS_PER_PAGE
+    assert page2.count(b'View Scorecard') == 5
+    assert b'Showing 21' in page2 and b'of 25 sessions' in page2
+
+
+def test_page_past_the_end_redirects_to_last_page(client):
+    register_and_login(client, 'can')
+    for _ in range(3): add_session(client)
+    r = client.get('/my_trainings?page=99')
+    assert r.status_code == 302 and r.headers['Location'].endswith('/my_trainings?page=1')
+
+
+def test_coach_history_past_the_end_redirects_to_last_page(client):
+    athlete = register_and_login(client, 'elif')
+    for _ in range(25): add_session(client)
+    client.get('/logout')
+    client.post('/register', data={'username': 'coach', 'email': 'coach@test.com', 'password': 'pw-12345', 'is_coach': 'on'})
+    client.post('/login', data={'email': 'coach@test.com', 'password': 'pw-12345'})
+    r = client.get(f'/athlete/{athlete.id}?page=99')
+    assert r.status_code == 302 and r.headers['Location'].endswith(f'/athlete/{athlete.id}?page=2')
+    assert b'Showing 21' in client.get(f'/athlete/{athlete.id}?page=2').data

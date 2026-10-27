@@ -199,7 +199,7 @@ MAE = Mean Absolute Error, RMSE = Root Mean Square Error. An MAE of 0.225 means 
 python -m pytest
 ```
 
-The 29 tests cover the statistics, the plain-language labels, the forecasting pipeline (including checks that no future data leaks into the training windows) and the web routes, which run against a temporary in-memory database.
+The 32 tests cover the statistics, the plain-language labels, the forecasting pipeline (including checks that no future data leaks into the training windows) and the web routes, which run against a temporary in-memory database.
 
 ## Limitations
 
