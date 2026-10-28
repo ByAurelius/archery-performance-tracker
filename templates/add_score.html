@@ -130,7 +130,7 @@
     const ctx = canvas.getContext('2d');
     let arrows = [];
 
-    function fetchWeather(lat, lon) {
+    function fetchWeather(lat, lon, isFallback = false) {
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,wind_direction_10m`;
         fetch(url)
             .then(response => response.json())
@@ -154,10 +154,16 @@
                 document.getElementById('inputWindSpeed').value = wind;
                 document.getElementById('inputWindDir').value = dir + ` (${deg}°)`;
             })
-            .catch(err => { fallbackWeather(); });
+            .catch(err => { if (isFallback) { showNoWeather(); } else { fallbackWeather(); } });
     }
 
-    function fallbackWeather() { fetchWeather(51.1079, 17.0385); }
+    function showNoWeather() {
+        document.getElementById('displayTemp').innerText = '-';
+        document.getElementById('displayWindSpeed').innerText = '-';
+        document.getElementById('displayWindDir').innerText = '-';
+    }
+
+    function fallbackWeather() { fetchWeather(51.1079, 17.0385, true); }
     if (navigator.geolocation) { navigator.geolocation.getCurrentPosition((pos) => { fetchWeather(pos.coords.latitude, pos.coords.longitude); }, (err) => { fallbackWeather(); }); } else { fallbackWeather(); }
 
     function drawTarget() {
