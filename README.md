@@ -160,6 +160,7 @@ archery-performance-tracker/
 ├── seed_synthetic_data.py   Simulation of the five virtual students
 ├── train_forecast.py        Trains, evaluates and saves the model; refreshes all forecasts
 ├── tune_forecast.py         Model selection on the validation set
+├── significance_test.py     Diebold-Mariano test of the LSTM against the baselines
 ├── create_demo_users.py     Demo coach and athlete accounts
 ├── models/                  Trained model (lstm_forecast.pt) and evaluation results
 ├── migrations/              Database schema versions (Flask-Migrate)
@@ -201,6 +202,8 @@ The model looks at an archer's last **60 sessions** (session average, score spre
 | *Oracle: the simulator's own expected value* | *0.227* | *0.319* | *0.051* |
 
 MAE = Mean Absolute Error, RMSE = Root Mean Square Error. An MAE of 0.225 means a prediction is off by about ±23 points over a 100-arrow session. The LSTM matches the oracle, which is the best possible forecast in expectation, so almost all of the remaining error is day-to-day chance. It performs just as well on archers it was not trained on (leave-one-archer-out test).
+
+The difference between the LSTM and the simple forecasts was checked with a Diebold-Mariano test (`python significance_test.py`, results in `models/significance.json`). The LSTM is significantly better than the 7-session and the trend forecasts; against the 30-session moving average the difference is small and only borderline significant.
 
 ## Security
 

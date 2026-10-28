@@ -1,0 +1,69 @@
+{
+ "lag": 29,
+ "best_epoch": 2,
+ "mae": {
+  "LSTM": 0.2251,
+  "Persistence (last 7)": 0.2384,
+  "Moving average (last 30)": 0.2294,
+  "Linear trend (last 90)": 0.2286,
+  "Oracle (simulator expectation)": 0.2274
+ },
+ "comparisons": {
+  "Persistence (last 7)": {
+   "abs": {
+    "mean_diff": -0.01336,
+    "dm": -7.907,
+    "p": 0.0,
+    "windows": 155
+   },
+   "squared": {
+    "mean_diff": -0.00921,
+    "dm": -5.657,
+    "p": 0.0,
+    "windows": 155
+   }
+  },
+  "Moving average (last 30)": {
+   "abs": {
+    "mean_diff": -0.00433,
+    "dm": -2.401,
+    "p": 0.0164,
+    "windows": 155
+   },
+   "squared": {
+    "mean_diff": -0.00228,
+    "dm": -1.039,
+    "p": 0.299,
+    "windows": 155
+   }
+  },
+  "Linear trend (last 90)": {
+   "abs": {
+    "mean_diff": -0.00356,
+    "dm": -4.633,
+    "p": 0.0,
+    "windows": 155
+   },
+   "squared": {
+    "mean_diff": -0.00238,
+    "dm": -4.864,
+    "p": 0.0,
+    "windows": 155
+   }
+  },
+  "Oracle (simulator expectation)": {
+   "abs": {
+    "mean_diff": -0.00229,
+    "dm": -1.228,
+    "p": 0.2194,
+    "windows": 155
+   },
+   "squared": {
+    "mean_diff": 0.00038,
+    "dm": 0.214,
+    "p": 0.8303,
+    "windows": 155
+   }
+  }
+ }
+}
