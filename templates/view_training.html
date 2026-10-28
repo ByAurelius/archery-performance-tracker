@@ -236,16 +236,14 @@
     }
     drawTarget(); drawArrows(); renderTable();
 
-    // --- YENI: PDF OLUSTURMA FONKSIYONU ---
+    // Exports the scorecard as a landscape A4 PDF.
+    // The official header is shown only inside the PDF, then hidden again.
     function generatePDF() {
-        // PDF'in icine alinacak asil cerceve
         const element = document.getElementById('scorecardToPrint');
 
-        // Sadece PDF dosyasinin icinde gorunmesi gereken basligi ac
         document.getElementById('pdfHeader').style.display = 'block';
         document.getElementById('scorecardTitle').style.display = 'none';
 
-        // PDF Ayarlari (Yatay mod - Landscape)
         const opt = {
             margin:       0.2,
             filename:     `Archery_Scorecard_{{ score.date }}.pdf`,
@@ -254,9 +252,7 @@
             jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' }
         };
 
-        // Kutuphaneyi cagir ve indir
         html2pdf().set(opt).from(element).save().then(() => {
-            // Indirme bitince basliklari eski haline dondur
             document.getElementById('pdfHeader').style.display = 'none';
             document.getElementById('scorecardTitle').style.display = 'block';
         });
